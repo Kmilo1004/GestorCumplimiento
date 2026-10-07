@@ -114,12 +114,29 @@ npm run dev
 Abre la URL que muestra la terminal (normalmente http://localhost:5173) en
 Chrome o Edge.
 
+## Datos de ejemplo
+
+Para probar la app sin tus datos reales:
+
+```bash
+npm run ejemplo
+```
+
+Crea la carpeta `boveda-ejemplo/` con 3 trabajos, 6 funciones y 15
+actividades de un funcionario (presupuesto, PQRS, entes de control, comité
+de convivencia y formación). Incluye prioridades, etiquetas, actividades
+recurrentes y evidencias en PDF. Las fechas se calculan desde el día en que
+lo ejecutas, así que siempre hay actividades vencidas, próximas y a tiempo.
+Ábrela desde la app con **Bóveda → Cambiar de carpeta**. Para regenerarla,
+borra la carpeta y vuelve a ejecutar el comando (no sobrescribe nada).
+
 ## Scripts
 
 | Comando | Qué hace |
 |---|---|
 | `npm run dev` | Servidor de desarrollo |
 | `npm test` | Pruebas (Vitest) |
+| `npm run ejemplo` | Genera una bóveda con datos de muestra en `boveda-ejemplo/` |
 | `npm run lint` | Lint (oxlint) |
 | `npm run build` | Build de producción en `dist/` |
 | `npm run preview` | Sirve el build localmente |
