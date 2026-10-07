@@ -2,6 +2,7 @@ import { useState } from 'react'
 import { AlertaBadge, EstadoBadge } from '../ui/Badge'
 import { nivelAlerta, textoRelativo } from '../../utils/alerts'
 import { ESTADOS } from '../../models'
+import ActividadMeta from './ActividadMeta'
 
 export default function ActividadListItem({ actividad, onEdit, onDelete, onToggleCompletada }) {
   const [confirmando, setConfirmando] = useState(false)
@@ -34,16 +35,20 @@ export default function ActividadListItem({ actividad, onEdit, onDelete, onToggl
         </p>
         <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
           <EstadoBadge estado={actividad.estado} />
-          <AlertaBadge nivel={alerta} />
-          {actividad.fecha_limite && <span className="text-xs text-slate-400">{textoRelativo(actividad.fecha_limite)}</span>}
+          {/* Completada ya se ve en el estado: no repetirla ni decir "Vence en…". */}
+          {!completada && <AlertaBadge nivel={alerta} />}
+          {!completada && actividad.fecha_limite && (
+            <span className="text-xs text-slate-400">{textoRelativo(actividad.fecha_limite)}</span>
+          )}
         </div>
+        <ActividadMeta actividad={actividad} />
       </div>
 
       <div className="flex shrink-0 gap-1">
         <button
           type="button"
           onClick={() => onEdit(actividad)}
-          className="rounded-md p-1.5 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
+          className="rounded-md p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-600"
           aria-label="Editar actividad"
         >
           <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">
@@ -74,7 +79,7 @@ export default function ActividadListItem({ actividad, onEdit, onDelete, onToggl
           <button
             type="button"
             onClick={() => setConfirmando(true)}
-            className="rounded-md p-1.5 text-slate-400 hover:bg-red-50 hover:text-red-500"
+            className="rounded-md p-2 text-slate-400 hover:bg-red-50 hover:text-red-500"
             aria-label="Eliminar actividad"
           >
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" className="h-4 w-4">

@@ -1,15 +1,14 @@
 import { Select, TextInput } from '../ui/Field'
-import { ESTADO_LABELS, ESTADO_LIST } from '../../models'
+import { ESTADO_LABELS, ESTADO_LIST, PRIORIDAD_LABELS, PRIORIDAD_LIST } from '../../models'
 
-export default function FilterBar({ filtros, onChange, trabajos }) {
+export default function FilterBar({ filtros, onChange, onLimpiar, trabajos, etiquetas = [] }) {
   const set = (cambios) => onChange({ ...filtros, ...cambios })
 
-  const hayFiltrosActivos =
-    filtros.estado || filtros.trabajoId || filtros.desde || filtros.hasta
+  const hayFiltrosActivos = Object.values(filtros).some(Boolean)
 
   return (
     <div className="rounded-2xl border border-slate-200 bg-white p-3 shadow-sm">
-      <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+      <div className="grid grid-cols-2 gap-2 sm:grid-cols-3">
         <Select value={filtros.estado} onChange={(e) => set({ estado: e.target.value })}>
           <option value="">Todos los estados</option>
           {ESTADO_LIST.map((estado) => (
@@ -24,6 +23,24 @@ export default function FilterBar({ filtros, onChange, trabajos }) {
           {trabajos.map((t) => (
             <option key={t.id} value={t.id}>
               {t.nombre}
+            </option>
+          ))}
+        </Select>
+
+        <Select value={filtros.prioridad} onChange={(e) => set({ prioridad: e.target.value })} aria-label="Prioridad">
+          <option value="">Toda prioridad</option>
+          {PRIORIDAD_LIST.map((p) => (
+            <option key={p} value={p}>
+              Prioridad {PRIORIDAD_LABELS[p].toLowerCase()}
+            </option>
+          ))}
+        </Select>
+
+        <Select value={filtros.etiqueta} onChange={(e) => set({ etiqueta: e.target.value })} aria-label="Etiqueta">
+          <option value="">Todas las etiquetas</option>
+          {etiquetas.map((t) => (
+            <option key={t} value={t}>
+              #{t}
             </option>
           ))}
         </Select>
@@ -45,7 +62,7 @@ export default function FilterBar({ filtros, onChange, trabajos }) {
       {hayFiltrosActivos && (
         <button
           type="button"
-          onClick={() => onChange({ estado: '', trabajoId: '', desde: '', hasta: '' })}
+          onClick={onLimpiar}
           className="mt-2 text-xs font-medium text-brand-600 hover:underline"
         >
           Limpiar filtros

@@ -61,6 +61,15 @@ export function createWebFs(raiz) {
       }
     },
 
+    async readBlob(ruta) {
+      try {
+        return await (await archivo(ruta)).getFile()
+      } catch (err) {
+        if (esNoEncontrado(err)) return null
+        throw err
+      }
+    },
+
     async writeFile(ruta, contenido) {
       await escribir(ruta, contenido)
     },

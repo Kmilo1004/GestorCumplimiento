@@ -20,6 +20,8 @@ Todo el texto de la app, comentarios y documentación van **en español**.
   Al leer, conservar claves de frontmatter desconocidas y tolerar archivos hechos a mano.
 - Eliminar = mover a `.papelera/`, nunca borrar definitivamente.
 - Decisiones de arquitectura nuevas → nuevo ADR en `docs/adr/`.
+- **Toda la UI debe verse bien en PC y en celular** (mobile-first, sin scroll
+  horizontal a 375 px, botones de tamaño táctil). Verificar ambos tamaños en el navegador.
 
 ## Comandos
 

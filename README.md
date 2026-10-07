@@ -26,7 +26,9 @@ MiBoveda/
 │       ├── _trabajo.md                 ← descripción del trabajo
 │       └── Atención al ciudadano/
 │           ├── _funcion.md             ← descripción de la función
-│           └── Responder PQRS.md       ← una actividad
+│           ├── Responder PQRS 2026-10.md   ← una actividad
+│           └── Evidencias/
+│               └── Responder PQRS 2026-10/ ← actas, PDF, fotos de esa actividad
 ├── .cumplimiento/config.json           ← datos internos de la bóveda
 └── .papelera/                          ← lo que eliminas se mueve aquí
 ```
@@ -38,7 +40,11 @@ Una actividad se ve así:
 id: 3f2a…
 tipo: actividad
 estado: en_progreso          # pendiente | en_progreso | completada
+prioridad: alta              # alta | media | baja
 fecha_limite: 2026-10-15
+tags: [pqrs, contraloria]    # etiquetas, las mismas que usa Obsidian
+recurrencia: mensual         # opcional: semanal, quincenal, mensual, bimestral, trimestral, semestral, anual
+serie: Responder PQRS        # nombre de la serie si es recurrente
 createdAt: 2026-10-01T10:00:00.000Z
 updatedAt: 2026-10-02T10:00:00.000Z
 ---
@@ -57,6 +63,14 @@ Pendiente radicado 123.
   `id`. Las claves extra del frontmatter (por ejemplo `tags`) se conservan.
 - Al volver a la ventana de la app se relee la carpeta, así que los cambios
   hechos en Obsidian aparecen solos (o usa **Bóveda → Releer carpeta**).
+- **Actividades recurrentes:** cada periodo es una nota propia
+  (`Informe mensual 2026-10.md`). Al completarla se crea sola la del siguiente
+  periodo con la misma prioridad, etiquetas y descripción. Quincenal sigue el
+  calendario colombiano (15 → fin de mes → 15).
+- **Evidencias:** los adjuntos se copian a `Evidencias/<Actividad>/` dentro de
+  la función. La carpeta manda: lo que pongas ahí desde el explorador aparece
+  en la app. Si renombras la actividad desde la app, su carpeta la acompaña
+  (si la renombras desde Obsidian, renombra también su carpeta de evidencias).
 - Respaldo: copia la carpeta completa.
 
 Detalles de la decisión en
@@ -81,7 +95,11 @@ empaquete como programa de escritorio (Tauri) esto desaparecerá.
   50 %, completada = 100 %; cada nivel promedia el de sus hijos.
 - Alertas de vencimiento: vencida (rojo) o a 2 días o menos (ámbar).
 - Dashboard con resumen y lista de vencidas/próximas.
-- Filtros por estado, trabajo y rango de fechas.
+- Prioridad (alta/media/baja), etiquetas y actividades recurrentes.
+- Evidencias adjuntas (PDF, imágenes, documentos) por actividad.
+- Filtros por estado, trabajo, prioridad, etiqueta y rango de fechas;
+  orden por fecha o prioridad.
+- Diseño adaptable: se usa igual en PC y en celular.
 - Exportar/importar JSON (reemplazar o combinar).
 - Migración automática de los datos de la versión anterior (que guardaba
   en el navegador).
@@ -128,7 +146,7 @@ docs/adr/         Decisiones de arquitectura
 |---|---|---|
 | 0 | Fundamentos, ADR, documentación | ✅ |
 | 1 | Bóveda en carpetas (Markdown) | ✅ |
-| 2 | Modelo ampliado: prioridad, etiquetas, recurrencia, evidencias | Pendiente |
+| 2 | Modelo ampliado: prioridad, etiquetas, recurrencia, evidencias | ✅ |
 | 3 | Agenda: día/semana/mes y notas diarias | Pendiente |
 | 4 | Recordatorios y app de escritorio (Tauri) | Pendiente |
 | 5 | Informes de gestión (Markdown / PDF / Word) | Pendiente |

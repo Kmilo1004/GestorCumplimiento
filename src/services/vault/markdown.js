@@ -18,7 +18,14 @@
 // El nombre NO va en el archivo: es el nombre del archivo o de la carpeta.
 
 import { parse, stringify } from 'yaml'
-import { ESTADO_LIST, ESTADOS } from '../../models'
+import {
+  ESTADO_LIST,
+  ESTADOS,
+  PRIORIDAD_LIST,
+  PRIORIDADES,
+  RECURRENCIA_LIST,
+  normalizarTags,
+} from '../../models'
 
 // El bloque puede estar vacío ('---\n---'), como lo deja Obsidian al quitar propiedades.
 const FRONTMATTER = /^---\r?\n(?:([\s\S]*?)\r?\n)?---[ \t]*(?:\r?\n|$)/
@@ -31,7 +38,7 @@ const NOTAS_ESCAPADO = /^\\(##[ \t]+Notas[ \t]*)$/gim
 // Separa un archivo en { frontmatter (objeto), cuerpo (texto) }.
 // Un frontmatter inválido no rompe la lectura: se trata como vacío.
 export function separarFrontmatter(texto = '') {
-  const limpio = texto.replace(/^﻿/, '')
+  const limpio = texto.replace(/^\uFEFF/, '')
   const match = limpio.match(FRONTMATTER)
   if (!match) return { frontmatter: {}, cuerpo: limpio }
   let frontmatter = {}
@@ -106,6 +113,8 @@ export function leerActividad(textoArchivo) {
   const descripcion = match ? cuerpo.slice(0, match.index) : cuerpo
   const notas = match ? cuerpo.slice(match.index + match[0].length) : ''
   const estado = ESTADO_LIST.includes(frontmatter.estado) ? frontmatter.estado : ESTADOS.PENDIENTE
+  const prioridad = PRIORIDAD_LIST.includes(frontmatter.prioridad) ? frontmatter.prioridad : PRIORIDADES.MEDIA
+  const recurrencia = RECURRENCIA_LIST.includes(frontmatter.recurrencia) ? frontmatter.recurrencia : ''
   return {
     frontmatter,
     datos: {
@@ -114,6 +123,11 @@ export function leerActividad(textoArchivo) {
       fecha_limite: fecha(frontmatter.fecha_limite),
       estado,
       notas: notas.trim(),
+      prioridad,
+      // Obsidian acepta `tags` como lista o como texto ("a, b"); también "tag".
+      tags: normalizarTags(frontmatter.tags ?? frontmatter.tag ?? []),
+      recurrencia,
+      serie: recurrencia ? texto(frontmatter.serie).trim() : '',
       createdAt: texto(frontmatter.createdAt),
       updatedAt: texto(frontmatter.updatedAt),
     },
@@ -125,13 +139,21 @@ export function escribirActividad(actividad, textoAnterior = '') {
   const partes = []
   if (actividad.descripcion) partes.push(actividad.descripcion.trim().replace(NOTAS_EN_DESCRIPCION, '\\$1'))
   partes.push(`## Notas${actividad.notas ? `\n\n${actividad.notas.trim()}` : ''}`)
+  const tags = normalizarTags(actividad.tags)
+  const { tag: _tagAntiguo, ...resto } = frontmatter
+  // Las claves opcionales vacías se quitan (undefined no se escribe en YAML):
+  // si el usuario borra las etiquetas en la app, también desaparecen del archivo.
   return unirFrontmatter(
     {
-      ...frontmatter,
+      ...resto,
       id: actividad.id,
       tipo: 'actividad',
       estado: actividad.estado,
+      prioridad: actividad.prioridad || PRIORIDADES.MEDIA,
       fecha_limite: actividad.fecha_limite || '',
+      tags: tags.length ? tags : undefined,
+      recurrencia: actividad.recurrencia || undefined,
+      serie: actividad.recurrencia && actividad.serie ? actividad.serie : undefined,
       createdAt: actividad.createdAt,
       updatedAt: actividad.updatedAt,
     },

@@ -127,3 +127,38 @@ describe('vaultRepository', () => {
     expect(actividades.filter((a) => a.nombre.startsWith('Tarea'))).toHaveLength(5)
   })
 })
+
+describe('evidencias en la bóveda', () => {
+  it('se leen de la carpeta (también las agregadas desde el explorador)', async () => {
+    const fs = createMemoryFs({
+      'Trabajos/T/F/Comité.md': '---\nid: a1\n---\n',
+      'Trabajos/T/F/Evidencias/Comité/acta.pdf': 'x',
+      'Trabajos/T/F/Evidencias/Comité/foto.jpg': 'y',
+    })
+    const { actividades } = await createVaultRepository(fs).cargar()
+    expect(actividades[0].evidencias).toEqual(['acta.pdf', 'foto.jpg'])
+  })
+
+  it('se mueven al renombrar la actividad o cambiarla de función', async () => {
+    const fs = createMemoryFs()
+    const repo = createVaultRepository(fs, { ahora: () => fecha })
+    const { t, a } = await sembrar(repo)
+    await repo.agregarEvidencias(a.id, [new File(['x'], 'acta.pdf')])
+    const f2 = await repo.guardarFuncion(crearFuncion({ trabajoId: t.id, nombre: 'Contratación' }))
+    const movida = await repo.guardarActividad({ ...a, nombre: 'PQRS octubre', funcionId: f2.id })
+
+    expect(movida.evidencias).toEqual(['acta.pdf'])
+    const archivos = Object.keys(fs._snapshot())
+    expect(archivos).toContain('Trabajos/Secretaría/Contratación/Evidencias/PQRS octubre/acta.pdf')
+    expect(archivos.some((p) => p.includes('Gestión documental/Evidencias'))).toBe(false)
+  })
+
+  it('van a la papelera junto con la actividad', async () => {
+    const fs = createMemoryFs()
+    const repo = createVaultRepository(fs, { ahora: () => fecha })
+    const { a } = await sembrar(repo)
+    await repo.agregarEvidencias(a.id, [new File(['x'], 'acta.pdf')])
+    await repo.eliminarActividad(a.id)
+    expect(Object.keys(fs._snapshot()).filter((p) => p.startsWith('Trabajos/') && p.includes('Evidencias'))).toEqual([])
+  })
+})

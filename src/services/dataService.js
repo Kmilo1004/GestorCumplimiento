@@ -6,7 +6,8 @@
 // está detrás de la interfaz de `services/fs`, así que pasar a Tauri solo
 // requiere otra implementación de esa interfaz, no cambios aquí ni en la UI.
 
-import { crearActividad, crearFuncion, crearTrabajo } from '../models'
+import { ESTADOS, crearActividad, crearFuncion, crearTrabajo } from '../models'
+import { esFechaValida, nombreDePeriodo, serieDe, siguienteFecha } from '../utils/recurrencia'
 import { createWebFs } from './fs/webFs'
 import { createVaultRepository } from './vault/vaultRepository'
 
@@ -30,6 +31,11 @@ let repo = null
 // Conecta la bóveda (carpeta elegida por el usuario) como almacenamiento.
 export function conectarBoveda(directoryHandle) {
   repo = createVaultRepository(createWebFs(directoryHandle))
+}
+
+// Permite usar otro repositorio (las pruebas usan uno sobre el fs en memoria).
+export function usarRepositorio(repositorio) {
+  repo = repositorio
 }
 
 function repositorio() {
@@ -88,12 +94,90 @@ export function eliminarFuncion(id) {
 
 // ---------- Actividades ----------
 
-export function crearActividadService(datos) {
-  return repositorio().guardarActividad(crearActividad(datos))
+// Una actividad recurrente se nombra "<serie> <periodo>" ("Informe mensual
+// 2026-10"). Si no tiene serie todavía, se deduce del nombre (ver serieDe).
+function conNombreDePeriodo(actividad) {
+  if (!actividad.recurrencia) return { ...actividad, serie: '' }
+  const serie = serieDe(actividad)
+  const nombre = esFechaValida(actividad.fecha_limite)
+    ? nombreDePeriodo(serie, actividad.fecha_limite, actividad.recurrencia)
+    : serie
+  return { ...actividad, serie, nombre }
 }
 
-export function actualizarActividad(id, cambios) {
-  return actualizar('actividad', repositorio().guardarActividad, id, cambios, 'Actividad no encontrada')
+// Al completar una actividad recurrente se crea la del siguiente periodo,
+// salvo que ya exista (p. ej. si se desmarcó y se volvió a marcar).
+async function crearSiguientePeriodo(actividad) {
+  const fecha = siguienteFecha(actividad.fecha_limite, actividad.recurrencia)
+  if (!fecha) return null
+  const { actividades } = await repositorio().cargar()
+  const yaExiste = actividades.some(
+    (a) => a.funcionId === actividad.funcionId && a.serie === actividad.serie && a.fecha_limite === fecha,
+  )
+  if (yaExiste) return null
+  return repositorio().guardarActividad(
+    conNombreDePeriodo(
+      crearActividad({
+        funcionId: actividad.funcionId,
+        serie: actividad.serie,
+        descripcion: actividad.descripcion,
+        prioridad: actividad.prioridad,
+        tags: actividad.tags,
+        recurrencia: actividad.recurrencia,
+        fecha_limite: fecha,
+      }),
+    ),
+  )
+}
+
+const esRecurrenteCompletada = (a) => a.estado === ESTADOS.COMPLETADA && Boolean(a.recurrencia)
+
+// `archivos` (opcional): File[] que se copian como evidencias.
+export async function crearActividadService({ archivos = [], ...datos }) {
+  let actividad = await repositorio().guardarActividad(conNombreDePeriodo(crearActividad(datos)))
+  if (archivos.length) actividad = await repositorio().agregarEvidencias(actividad.id, archivos)
+  // Registrar un periodo ya cumplido también programa el siguiente.
+  if (esRecurrenteCompletada(actividad)) await crearSiguientePeriodo(actividad)
+  return actividad
+}
+
+// ¿El cambio afecta el nombre de periodo? Si no, y el usuario renombró la
+// nota a mano (ya no sigue "<serie> <periodo>"), se respeta su nombre.
+function debeRenombrarPeriodo(actual, nueva) {
+  if (!nueva.recurrencia) return false
+  const cambioPeriodo =
+    actual.recurrencia !== nueva.recurrencia ||
+    actual.fecha_limite !== nueva.fecha_limite ||
+    serieDe(actual) !== serieDe(nueva)
+  const seguiaConvencion =
+    !actual.recurrencia || actual.nombre === nombreDePeriodo(serieDe(actual), actual.fecha_limite, actual.recurrencia)
+  return cambioPeriodo || seguiaConvencion
+}
+
+export async function actualizarActividad(id, { archivos = [], ...cambios }) {
+  const actual = await repositorio().obtener('actividad', id)
+  if (!actual) throw new Error('Actividad no encontrada')
+  const nueva = { ...actual, ...cambios, id, updatedAt: new Date().toISOString() }
+  const aGuardar = debeRenombrarPeriodo(actual, nueva)
+    ? conNombreDePeriodo(nueva)
+    : // En una recurrente el formulario manda la serie en `nombre`: se conserva
+      // el nombre que el usuario le dio a la nota.
+      { ...nueva, nombre: nueva.recurrencia ? actual.nombre : nueva.nombre, serie: nueva.recurrencia ? serieDe(nueva) : '' }
+  let actividad = await repositorio().guardarActividad(aGuardar)
+  if (archivos.length) actividad = await repositorio().agregarEvidencias(id, archivos)
+  if (actual.estado !== ESTADOS.COMPLETADA && esRecurrenteCompletada(actividad)) {
+    await crearSiguientePeriodo(actividad)
+  }
+  return actividad
+}
+
+export function eliminarEvidencia(actividadId, nombre) {
+  return repositorio().eliminarEvidencia(actividadId, nombre)
+}
+
+// Devuelve el archivo (Blob) para abrirlo o descargarlo.
+export function leerEvidencia(actividadId, nombre) {
+  return repositorio().leerEvidencia(actividadId, nombre)
 }
 
 export function eliminarActividad(id) {

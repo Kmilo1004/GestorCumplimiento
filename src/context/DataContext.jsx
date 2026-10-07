@@ -1,5 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as dataService from '../services/dataService'
+import { unicasSinMayusculas } from '../models'
 import { construirArbol, resumenGeneral } from '../utils/compliance'
 
 // Estados de la bóveda:
@@ -215,6 +216,24 @@ export function DataProvider({ children }) {
     await refrescar()
   }, [refrescar])
 
+  // Devuelve la actividad actualizada para que el formulario refresque su lista.
+  const eliminarEvidencia = useCallback(
+    async (actividadId, nombre) => {
+      const actividad = await dataService.eliminarEvidencia(actividadId, nombre)
+      await refrescar()
+      return actividad
+    },
+    [refrescar],
+  )
+
+  const leerEvidencia = useCallback((actividadId, nombre) => dataService.leerEvidencia(actividadId, nombre), [])
+
+  // Todas las etiquetas en uso, para sugerirlas al escribir.
+  const etiquetas = useMemo(
+    () => unicasSinMayusculas(actividades.flatMap((a) => a.tags ?? [])).sort((a, b) => a.localeCompare(b, 'es')),
+    [actividades],
+  )
+
   const exportarDatos = useCallback(() => dataService.exportarDatos(), [])
 
   const importarDatos = useCallback(
@@ -250,6 +269,9 @@ export function DataProvider({ children }) {
     crearActividad,
     actualizarActividad,
     eliminarActividad,
+    eliminarEvidencia,
+    leerEvidencia,
+    etiquetas,
     exportarDatos,
     importarDatos,
   }

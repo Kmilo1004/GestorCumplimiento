@@ -4,7 +4,8 @@
 //
 //   listDir(ruta)            -> [{ name, kind: 'file' | 'directory' }] | null si no existe
 //   readFile(ruta)           -> string | null si no existe
-//   writeFile(ruta, texto)   -> crea las carpetas intermedias si faltan
+//   readBlob(ruta)           -> Blob | null si no existe (adjuntos binarios)
+//   writeFile(ruta, datos)   -> texto o Blob/File; crea las carpetas intermedias si faltan
 //   copyFile(origen, destino)-> copia el contenido tal cual (sirve para binarios)
 //   mkdir(ruta)              -> crea la carpeta (y sus padres) si no existe
 //   remove(ruta)             -> borra archivo o carpeta (recursivo); no falla si no existe
@@ -49,6 +50,13 @@ export function createMemoryFs(archivosIniciales = {}) {
     async readFile(ruta) {
       const r = joinPath(ruta)
       return archivos.has(r) ? archivos.get(r) : null
+    },
+
+    async readBlob(ruta) {
+      const r = joinPath(ruta)
+      if (!archivos.has(r)) return null
+      const contenido = archivos.get(r)
+      return contenido instanceof Blob ? contenido : new Blob([contenido])
     },
 
     async writeFile(ruta, contenido) {

@@ -4,12 +4,16 @@
 //   Trabajos/<Trabajo>/_trabajo.md
 //   Trabajos/<Trabajo>/<Función>/_funcion.md
 //   Trabajos/<Trabajo>/<Función>/<Actividad>.md
+//   Trabajos/<Trabajo>/<Función>/Evidencias/<Actividad>/<adjuntos>
 //
 // Reglas:
 // - El nombre de cada entidad es el nombre de su carpeta o archivo.
 // - La jerarquía es la ubicación: trabajoId / funcionId se deducen de la
 //   carpeta donde está el archivo, no se guardan en él.
 // - Eliminar mueve a .papelera/<fecha>/… ; nunca se borra definitivamente.
+// - Las evidencias de una actividad son los archivos de su carpeta en
+//   Evidencias/: la carpeta es la fuente de verdad (se pueden agregar desde
+//   el explorador) y se mueve junto con la actividad.
 // - Si un archivo no tiene id (creado a mano) o tiene uno repetido (carpeta
 //   copiada), se le asigna uno nuevo al leer la bóveda.
 //
@@ -33,6 +37,7 @@ export const CARPETA_PAPELERA = '.papelera'
 export const ARCHIVO_CONFIG = '.cumplimiento/config.json'
 export const ARCHIVO_TRABAJO = '_trabajo.md'
 export const ARCHIVO_FUNCION = '_funcion.md'
+export const CARPETA_EVIDENCIAS = 'Evidencias'
 export const FORMATO_BOVEDA = 1
 
 const EXT = '.md'
@@ -48,6 +53,15 @@ function esCarpetaVisible({ name, kind }) {
 function sinExtension(nombreArchivo) {
   return nombreArchivo.slice(0, -EXT.length)
 }
+
+// "Acta final.pdf" -> { base: 'Acta final', extension: '.pdf' }
+function partirNombreArchivo(nombre) {
+  const punto = nombre.lastIndexOf('.')
+  if (punto <= 0) return { base: nombre, extension: '' }
+  return { base: nombre.slice(0, punto), extension: nombre.slice(punto).toLowerCase() }
+}
+
+const esArchivoVisible = ({ name, kind }) => kind === 'file' && !name.startsWith('.')
 
 export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   // Índice en memoria. Para cada entidad se guarda la entidad tal como la ve
@@ -78,6 +92,12 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     const f = funciones.get(funcionId)
     if (!f) throw new Error('Función no encontrada')
     return joinPath(rutaTrabajo(f.entidad.trabajoId), f.carpeta)
+  }
+
+  function rutaEvidencias(actividadId) {
+    const a = actividades.get(actividadId)
+    if (!a) throw new Error('Actividad no encontrada')
+    return joinPath(rutaFuncion(a.entidad.funcionId), CARPETA_EVIDENCIAS, sinExtension(a.archivo))
   }
 
   function rutaActividad(actividadId) {
@@ -127,6 +147,15 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     return entradas.sort((a, b) => a.name.localeCompare(b.name, 'es'))
   }
 
+  // Evidencias/<Actividad>/* de una función -> Map(nombreActividad -> [archivos])
+  async function leerEvidenciasDeFuncion(rutaF) {
+    const carpetas = await listarOrdenado(joinPath(rutaF, CARPETA_EVIDENCIAS), esCarpetaVisible)
+    const archivos = await Promise.all(
+      carpetas.map(({ name }) => listarOrdenado(joinPath(rutaF, CARPETA_EVIDENCIAS, name), esArchivoVisible)),
+    )
+    return new Map(carpetas.map(({ name }, i) => [name, archivos[i].map((a) => a.name)]))
+  }
+
   // Lee varios archivos en paralelo (la lectura es lo lento en disco).
   function leerTodos(rutas) {
     return Promise.all(rutas.map((r) => fs.readFile(r)))
@@ -158,7 +187,11 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
       const rutasF = dirsFuncion.map(({ name }) => joinPath(rutaT, name))
       const [textosF, notasF] = await Promise.all([
         leerTodos(rutasF.map((r) => joinPath(r, ARCHIVO_FUNCION))),
-        Promise.all(rutasF.map((r) => listarOrdenado(r, esNotaDeActividad))),
+        Promise.all(
+          rutasF.map((r) =>
+            Promise.all([listarOrdenado(r, esNotaDeActividad), leerEvidenciasDeFuncion(r)]),
+          ),
+        ),
       ])
 
       for (const [j, dirFuncion] of dirsFuncion.entries()) {
@@ -169,14 +202,15 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         const funcion = { ...datosF, trabajoId: trabajo.id, nombre: dirFuncion.name }
         nuevasFunciones.set(funcion.id, { entidad: funcion, carpeta: dirFuncion.name })
 
-        const notas = notasF[j]
+        const [notas, evidencias] = notasF[j]
         const textosA = await leerTodos(notas.map(({ name }) => joinPath(rutaF, name)))
         for (const [k, nota] of notas.entries()) {
           const datosA = await conId(joinPath(rutaF, nota.name), textosA[k], leerActividad, ids, (d) => ({
             tipo: 'actividad',
             estado: d.estado,
           }))
-          const actividad = { ...datosA, funcionId: funcion.id, nombre: sinExtension(nota.name) }
+          const nombre = sinExtension(nota.name)
+          const actividad = { ...datosA, funcionId: funcion.id, nombre, evidencias: evidencias.get(nombre) ?? [] }
           nuevasActividades.set(actividad.id, { entidad: actividad, archivo: nota.name })
         }
       }
@@ -304,6 +338,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
       await asegurarCargado()
       const carpetaPadre = rutaFuncion(actividad.funcionId)
       const previo = actividades.get(actividad.id)
+      const evidenciasAntes = previo ? rutaEvidencias(actividad.id) : null
       const archivo = await ubicar({
         carpetaPadre,
         nombreDeseado: actividad.nombre,
@@ -311,10 +346,22 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         rutaActual: previo ? rutaActividad(actividad.id) : null,
         nombreActual: previo?.entidad.nombre,
       })
-      const entidad = { ...actividad, nombre: sinExtension(archivo) }
+      // Las evidencias las decide la carpeta, no quien llama.
+      const entidad = { ...actividad, nombre: sinExtension(archivo), evidencias: previo?.entidad.evidencias ?? [] }
       const ruta = joinPath(carpetaPadre, archivo)
       await fs.writeFile(ruta, escribirActividad(entidad, (await fs.readFile(ruta)) ?? ''))
       actividades.set(entidad.id, { entidad, archivo })
+      // Renombrada o movida de función: su carpeta de evidencias la acompaña.
+      const evidenciasDespues = rutaEvidencias(entidad.id)
+      if (evidenciasAntes && evidenciasAntes !== evidenciasDespues && (await fs.exists(evidenciasAntes))) {
+        // Si ya hay una carpeta con el nombre nuevo no es de ninguna actividad
+        // (ubicar garantizó que el nombre está libre): se aparta a la papelera
+        // en vez de mezclar o sobrescribir archivos.
+        if (!mismaRuta(evidenciasAntes, evidenciasDespues) && (await fs.exists(evidenciasDespues))) {
+          await aPapelera(evidenciasDespues)
+        }
+        await moveEntry(fs, evidenciasAntes, evidenciasDespues)
+      }
       return { ...entidad }
     })
   }
@@ -322,8 +369,59 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   function eliminarActividad(id) {
     return enCola(async () => {
       await asegurarCargado()
+      const evidencias = rutaEvidencias(id)
       await aPapelera(rutaActividad(id))
+      if (await fs.exists(evidencias)) await aPapelera(evidencias)
       actividades.delete(id)
+    })
+  }
+
+  // ---------- Evidencias ----------
+
+  // Solo se aceptan nombres que existen en la carpeta (evita rutas como "../x").
+  function rutaDeEvidencia(id, nombre) {
+    if (!actividades.get(id)?.entidad.evidencias.includes(nombre)) {
+      throw new Error('La evidencia no pertenece a esta actividad.')
+    }
+    return joinPath(rutaEvidencias(id), nombre)
+  }
+
+  async function refrescarEvidencias(id) {
+    const item = actividades.get(id)
+    const lista = await listarOrdenado(rutaEvidencias(id), esArchivoVisible)
+    item.entidad = { ...item.entidad, evidencias: lista.map((a) => a.name) }
+    return { ...item.entidad }
+  }
+
+  // Copia archivos (File/Blob con .name) a la carpeta de evidencias de la
+  // actividad. Devuelve la actividad actualizada.
+  function agregarEvidencias(id, archivos) {
+    return enCola(async () => {
+      await asegurarCargado()
+      const carpeta = rutaEvidencias(id)
+      for (const archivo of archivos) {
+        const { base, extension } = partirNombreArchivo(archivo.name || 'evidencia')
+        const destino = await rutaDisponible(fs, carpeta, nombreSeguro(base), extension)
+        await fs.writeFile(destino, archivo)
+      }
+      return refrescarEvidencias(id)
+    })
+  }
+
+  function eliminarEvidencia(id, nombre) {
+    return enCola(async () => {
+      await asegurarCargado()
+      await aPapelera(rutaDeEvidencia(id, nombre))
+      return refrescarEvidencias(id)
+    })
+  }
+
+  function leerEvidencia(id, nombre) {
+    return enCola(async () => {
+      await asegurarCargado()
+      const blob = await fs.readBlob(rutaDeEvidencia(id, nombre))
+      if (!blob) throw new Error('La evidencia ya no existe en la carpeta.')
+      return blob
     })
   }
 
@@ -360,5 +458,8 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     guardarActividad,
     eliminarActividad,
     vaciar,
+    agregarEvidencias,
+    eliminarEvidencia,
+    leerEvidencia,
   }
 }

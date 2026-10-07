@@ -1,6 +1,8 @@
 import { useEffect } from 'react'
 
-export default function Modal({ open, title, onClose, children, footer }) {
+const ANCHOS = { md: 'sm:max-w-md', lg: 'sm:max-w-lg' }
+
+export default function Modal({ open, title, onClose, children, footer, size = 'md' }) {
   useEffect(() => {
     if (!open) return
     const onKeyDown = (e) => {
@@ -23,7 +25,7 @@ export default function Modal({ open, title, onClose, children, footer }) {
         onClick={onClose}
         aria-hidden="true"
       />
-      <div className="relative w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl sm:max-w-md sm:rounded-2xl safe-bottom animate-in">
+      <div className={`relative w-full max-h-[92dvh] overflow-y-auto rounded-t-2xl bg-white p-5 shadow-xl ${ANCHOS[size]} sm:rounded-2xl safe-bottom animate-in`}>
         <div className="mb-4 flex items-center justify-between">
           <h2 className="text-lg font-semibold text-slate-900">{title}</h2>
           <button
