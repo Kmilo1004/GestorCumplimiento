@@ -32,28 +32,6 @@ export function nivelAlerta(actividad, { umbralDias = UMBRAL_PROXIMA_DIAS } = {}
   return ALERTA.OK
 }
 
-export const ALERTA_LABELS = {
-  [ALERTA.VENCIDA]: 'Vencida',
-  [ALERTA.PROXIMA]: 'Próxima a vencer',
-  [ALERTA.OK]: 'A tiempo',
-  [ALERTA.COMPLETADA]: 'Completada',
-}
-
-// Clases Tailwind reutilizables para pintar badges/indicadores según alerta.
-export const ALERTA_ESTILOS = {
-  [ALERTA.VENCIDA]: 'bg-red-100 text-red-700 border-red-200',
-  [ALERTA.PROXIMA]: 'bg-amber-100 text-amber-700 border-amber-200',
-  [ALERTA.OK]: 'bg-slate-100 text-slate-600 border-slate-200',
-  [ALERTA.COMPLETADA]: 'bg-green-100 text-green-700 border-green-200',
-}
-
-export const ALERTA_DOT = {
-  [ALERTA.VENCIDA]: 'bg-red-500',
-  [ALERTA.PROXIMA]: 'bg-amber-500',
-  [ALERTA.OK]: 'bg-slate-400',
-  [ALERTA.COMPLETADA]: 'bg-green-500',
-}
-
 export function formatearFecha(fechaLimite) {
   if (!fechaLimite) return 'Sin fecha'
   const d = new Date(`${fechaLimite}T00:00:00`)
@@ -70,12 +48,72 @@ export function textoRelativo(fechaLimite) {
   return `Venció hace ${Math.abs(dias)} días`
 }
 
-// Devuelve, ordenadas por urgencia, las actividades no completadas cuyo
-// nivel de alerta sea "vencida" o "próxima". Útil para el Dashboard.
-export function actividadesProximasAVencer(actividades = [], { umbralDias = UMBRAL_PROXIMA_DIAS } = {}) {
-  return actividades
-    .filter((a) => a.estado !== ESTADOS.COMPLETADA && a.fecha_limite)
-    .map((a) => ({ ...a, _dias: diasHastaVencimiento(a.fecha_limite) }))
-    .filter((a) => a._dias <= umbralDias)
-    .sort((a, b) => a._dias - b._dias)
+// ---------- Agrupación por urgencia (vista de lista) ----------
+
+export const GRUPOS_URGENCIA = [
+  { id: 'vencidas', titulo: 'Vencidas', tono: 'danger' },
+  { id: 'hoy', titulo: 'Hoy', tono: 'warning' },
+  { id: 'semana', titulo: 'Próximos 7 días', tono: 'normal' },
+  { id: 'despues', titulo: 'Más adelante', tono: 'normal' },
+  { id: 'sin_fecha', titulo: 'Sin fecha', tono: 'muted' },
+  { id: 'completadas', titulo: 'Completadas', tono: 'muted' },
+]
+
+export function grupoUrgencia(actividad) {
+  if (actividad.estado === ESTADOS.COMPLETADA) return 'completadas'
+  if (!actividad.fecha_limite) return 'sin_fecha'
+  const dias = diasHastaVencimiento(actividad.fecha_limite)
+  if (dias < 0) return 'vencidas'
+  if (dias === 0) return 'hoy'
+  if (dias <= 7) return 'semana'
+  return 'despues'
+}
+
+const RANGO_PRIORIDAD = { alta: 0, media: 1, baja: 2 }
+
+// Dentro de un grupo: primero la fecha más cercana y, a igual fecha, la
+// prioridad más alta. Las completadas, de la más reciente a la más antigua.
+export function compararActividades(a, b) {
+  const porFecha = (a.fecha_limite || '9999').localeCompare(b.fecha_limite || '9999')
+  if (porFecha) return a.estado === ESTADOS.COMPLETADA ? -porFecha : porFecha
+  return (RANGO_PRIORIDAD[a.prioridad] ?? 1) - (RANGO_PRIORIDAD[b.prioridad] ?? 1)
+}
+
+// [{ ...grupo, actividades }] sin los grupos vacíos, en el orden de GRUPOS_URGENCIA.
+export function agruparPorUrgencia(actividades = []) {
+  const porGrupo = new Map(GRUPOS_URGENCIA.map((g) => [g.id, []]))
+  for (const a of actividades) porGrupo.get(grupoUrgencia(a)).push(a)
+  return GRUPOS_URGENCIA.map((g) => ({ ...g, actividades: porGrupo.get(g.id).sort(compararActividades) })).filter(
+    (g) => g.actividades.length,
+  )
+}
+
+// Texto corto para chips de fecha: "Hoy", "Mañana", "En 3 d", "Hace 2 d", "15 oct".
+export function fechaCorta(fechaLimite) {
+  if (!fechaLimite) return ''
+  const dias = diasHastaVencimiento(fechaLimite)
+  if (dias === 0) return 'Hoy'
+  if (dias === 1) return 'Mañana'
+  if (dias === -1) return 'Ayer'
+  if (dias < 0 && dias >= -30) return `Hace ${-dias} d`
+  if (dias > 1 && dias <= 7) return `En ${dias} d`
+  const d = new Date(`${fechaLimite}T00:00:00`)
+  const opciones = { day: 'numeric', month: 'short' }
+  if (d.getFullYear() !== new Date().getFullYear()) opciones.year = 'numeric'
+  return d.toLocaleDateString('es-CO', opciones).replace('.', '')
+}
+
+// Conteos para tarjetas y resúmenes: { vencidas, hoy, semana, abiertas, completadas }.
+export function contarPorUrgencia(actividades = []) {
+  const conteo = { vencidas: 0, hoy: 0, semana: 0, abiertas: 0, completadas: 0 }
+  for (const a of actividades) {
+    const grupo = grupoUrgencia(a)
+    if (grupo === 'completadas') {
+      conteo.completadas++
+      continue
+    }
+    conteo.abiertas++
+    if (conteo[grupo] !== undefined) conteo[grupo]++
+  }
+  return conteo
 }

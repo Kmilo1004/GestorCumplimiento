@@ -169,11 +169,22 @@ export function DataProvider({ children }) {
     })
   }, [actividades, funciones, trabajos])
 
+  // trabajoId -> actividades (con contexto), para tarjetas y menús.
+  const actividadesPorTrabajo = useMemo(() => {
+    const mapa = new Map()
+    for (const a of actividadesConContexto) {
+      if (!mapa.has(a.trabajoId)) mapa.set(a.trabajoId, [])
+      mapa.get(a.trabajoId).push(a)
+    }
+    return mapa
+  }, [actividadesConContexto])
+
   // ---- Mutaciones: escriben en dataService y recargan el estado ----
 
   const crearTrabajo = useCallback(async (datos) => {
-    await dataService.crearTrabajoService(datos)
+    const creado = await dataService.crearTrabajoService(datos)
     await refrescar()
+    return creado
   }, [refrescar])
 
   const actualizarTrabajo = useCallback(async (id, cambios) => {
@@ -187,8 +198,9 @@ export function DataProvider({ children }) {
   }, [refrescar])
 
   const crearFuncion = useCallback(async (datos) => {
-    await dataService.crearFuncionService(datos)
+    const creado = await dataService.crearFuncionService(datos)
     await refrescar()
+    return creado
   }, [refrescar])
 
   const actualizarFuncion = useCallback(async (id, cambios) => {
@@ -202,8 +214,9 @@ export function DataProvider({ children }) {
   }, [refrescar])
 
   const crearActividad = useCallback(async (datos) => {
-    await dataService.crearActividadService(datos)
+    const creado = await dataService.crearActividadService(datos)
     await refrescar()
+    return creado
   }, [refrescar])
 
   const actualizarActividad = useCallback(async (id, cambios) => {
@@ -257,6 +270,7 @@ export function DataProvider({ children }) {
     funciones,
     actividades,
     actividadesConContexto,
+    actividadesPorTrabajo,
     arbol,
     resumen,
     refrescar,

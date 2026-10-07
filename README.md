@@ -99,7 +99,13 @@ empaquete como programa de escritorio (Tauri) esto desaparecerá.
 - Evidencias adjuntas (PDF, imágenes, documentos) por actividad.
 - Filtros por estado, trabajo, prioridad, etiqueta y rango de fechas;
   orden por fecha o prioridad.
-- Diseño adaptable: se usa igual en PC y en celular.
+- Navegación por niveles: tarjetas de trabajos → página del trabajo con
+  pestañas por función. Actividades en una línea, agrupadas por urgencia
+  (Vencidas, Hoy, Próximos 7 días…) o en tablero por estado (arrastrar en PC).
+- Panel de detalle de cada actividad y formulario rápido para agregar
+  (lo opcional queda en "Más opciones").
+- Búsqueda de actividades (sin importar tildes) y filtros plegables.
+- Diseño adaptable: menú lateral en PC, menú inferior y botón + en celular.
 - Exportar/importar JSON (reemplazar o combinar).
 - Migración automática de los datos de la versión anterior (que guardaba
   en el navegador).

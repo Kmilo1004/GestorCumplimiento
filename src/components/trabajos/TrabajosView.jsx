@@ -1,106 +1,91 @@
 import { useState } from 'react'
-import { useData } from '../../context/DataContext'
-import TrabajoAccordion from './TrabajoAccordion'
+import TrabajosLista from './TrabajosLista'
+import TrabajoDetalle from './TrabajoDetalle'
 import TrabajoFormModal from './TrabajoFormModal'
 import FuncionFormModal from './FuncionFormModal'
-import ActividadFormModal from './ActividadFormModal'
-import EmptyState from '../ui/EmptyState'
+import ConfirmDialog from '../ui/ConfirmDialog'
+import { useData } from '../../context/DataContext'
 
-export default function TrabajosView() {
+// Sección Trabajos: lista de trabajos (#/trabajos) o un trabajo
+// (#/trabajos/<id>[/<funcionId>]). Aquí viven los formularios de trabajo y
+// función y la confirmación de eliminar.
+export default function TrabajosView({ trabajoId, funcionId, navegar }) {
   const data = useData()
-  const [funcionesAbiertas, setFuncionesAbiertas] = useState({})
-
   const [trabajoModal, setTrabajoModal] = useState({ open: false, trabajo: null })
   const [funcionModal, setFuncionModal] = useState({ open: false, trabajoId: null, funcion: null })
-  const [actividadModal, setActividadModal] = useState({ open: false, funcionId: null, actividad: null })
+  const [eliminar, setEliminar] = useState(null) // { tipo: 'trabajo'|'funcion', entidad }
 
-  const toggleFuncion = (funcionId) =>
-    setFuncionesAbiertas((prev) => ({ ...prev, [funcionId]: !prev[funcionId] }))
+  const confirmarEliminar = async () => {
+    const { tipo, entidad } = eliminar
+    setEliminar(null)
+    if (tipo === 'trabajo') {
+      await data.eliminarTrabajo(entidad.id)
+      navegar('trabajos')
+    } else {
+      await data.eliminarFuncion(entidad.id)
+      navegar('trabajos', entidad.trabajoId)
+    }
+  }
+
+  const acciones = {
+    onEditarTrabajo: (t) => setTrabajoModal({ open: true, trabajo: t }),
+    onEliminarTrabajo: (t) => setEliminar({ tipo: 'trabajo', entidad: t }),
+    onNuevaFuncion: (t) => setFuncionModal({ open: true, trabajoId: t.id, funcion: null }),
+    onEditarFuncion: (f) => setFuncionModal({ open: true, trabajoId: f.trabajoId, funcion: f }),
+    onEliminarFuncion: (f) => setEliminar({ tipo: 'funcion', entidad: f }),
+  }
 
   return (
-    <div className="mx-auto max-w-2xl space-y-3 px-4 py-4 sm:px-6">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-slate-400">
-          {data.arbol.length} {data.arbol.length === 1 ? 'trabajo' : 'trabajos'}
-        </p>
-        <button
-          type="button"
-          onClick={() => setTrabajoModal({ open: true, trabajo: null })}
-          className="flex items-center gap-1.5 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4">
-            <path strokeLinecap="round" strokeLinejoin="round" d="M12 4.5v15m7.5-7.5h-15" />
-          </svg>
-          Nuevo trabajo
-        </button>
-      </div>
-
-      {data.arbol.length === 0 ? (
-        <EmptyState
-          title="Todavía no tienes trabajos registrados"
-          description="Empieza creando un Trabajo (ej. un cargo o proceso). Luego podrás agregarle Funciones y Actividades."
-          action={
-            <button
-              type="button"
-              onClick={() => setTrabajoModal({ open: true, trabajo: null })}
-              className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700"
-            >
-              Crear el primer trabajo
-            </button>
-          }
+    <>
+      {trabajoId ? (
+        <TrabajoDetalle
+          trabajoId={trabajoId}
+          funcionId={funcionId}
+          onVolver={() => navegar('trabajos')}
+          onElegirFuncion={(id) => navegar('trabajos', trabajoId, id)}
+          {...acciones}
         />
       ) : (
-        data.arbol.map((trabajo) => (
-          <TrabajoAccordion
-            key={trabajo.id}
-            trabajo={trabajo}
-            funcionesAbiertas={funcionesAbiertas}
-            onToggleFuncion={toggleFuncion}
-            onEditarTrabajo={(t) => setTrabajoModal({ open: true, trabajo: t })}
-            onEliminarTrabajo={data.eliminarTrabajo}
-            onNuevaFuncion={(t) => setFuncionModal({ open: true, trabajoId: t.id, funcion: null })}
-            onEditarFuncion={(f) => setFuncionModal({ open: true, trabajoId: f.trabajoId, funcion: f })}
-            onEliminarFuncion={data.eliminarFuncion}
-            onNuevaActividad={(f) => setActividadModal({ open: true, funcionId: f.id, actividad: null })}
-            onEditarActividad={(a) => setActividadModal({ open: true, funcionId: a.funcionId, actividad: a })}
-            onEliminarActividad={data.eliminarActividad}
-            onToggleActividadCompletada={(a, nuevoEstado) => data.actualizarActividad(a.id, { estado: nuevoEstado })}
-          />
-        ))
+        <TrabajosLista
+          onAbrir={(id) => navegar('trabajos', id)}
+          onNuevo={() => setTrabajoModal({ open: true, trabajo: null })}
+          onEditar={acciones.onEditarTrabajo}
+          onEliminar={acciones.onEliminarTrabajo}
+        />
       )}
 
       <TrabajoFormModal
         open={trabajoModal.open}
         trabajo={trabajoModal.trabajo}
         onClose={() => setTrabajoModal({ open: false, trabajo: null })}
-        onSubmit={(form) =>
-          trabajoModal.trabajo
-            ? data.actualizarTrabajo(trabajoModal.trabajo.id, form)
-            : data.crearTrabajo(form)
-        }
+        onSubmit={async (form) => {
+          if (trabajoModal.trabajo) return data.actualizarTrabajo(trabajoModal.trabajo.id, form)
+          const nuevo = await data.crearTrabajo(form)
+          if (nuevo) navegar('trabajos', nuevo.id)
+        }}
       />
 
       <FuncionFormModal
         open={funcionModal.open}
         funcion={funcionModal.funcion}
         onClose={() => setFuncionModal({ open: false, trabajoId: null, funcion: null })}
-        onSubmit={(form) =>
-          funcionModal.funcion
-            ? data.actualizarFuncion(funcionModal.funcion.id, form)
-            : data.crearFuncion({ ...form, trabajoId: funcionModal.trabajoId })
-        }
+        onSubmit={async (form) => {
+          if (funcionModal.funcion) return data.actualizarFuncion(funcionModal.funcion.id, form)
+          const nueva = await data.crearFuncion({ ...form, trabajoId: funcionModal.trabajoId })
+          if (nueva) navegar('trabajos', funcionModal.trabajoId, nueva.id)
+        }}
       />
 
-      <ActividadFormModal
-        open={actividadModal.open}
-        actividad={actividadModal.actividad}
-        onClose={() => setActividadModal({ open: false, funcionId: null, actividad: null })}
-        onSubmit={(form) =>
-          actividadModal.actividad
-            ? data.actualizarActividad(actividadModal.actividad.id, form)
-            : data.crearActividad({ ...form, funcionId: actividadModal.funcionId })
+      <ConfirmDialog
+        open={Boolean(eliminar)}
+        title={eliminar?.tipo === 'trabajo' ? 'Eliminar trabajo' : 'Eliminar función'}
+        message={
+          eliminar &&
+          `“${eliminar.entidad.nombre}” y todo lo que contiene se moverán a la papelera de la bóveda (.papelera). Podrás recuperarlos desde esa carpeta.`
         }
+        onConfirm={confirmarEliminar}
+        onCancel={() => setEliminar(null)}
       />
-    </div>
+    </>
   )
 }

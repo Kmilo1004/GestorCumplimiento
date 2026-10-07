@@ -23,6 +23,17 @@ Todo el texto de la app, comentarios y documentación van **en español**.
 - **Toda la UI debe verse bien en PC y en celular** (mobile-first, sin scroll
   horizontal a 375 px, botones de tamaño táctil). Verificar ambos tamaños en el navegador.
 
+## Interfaz
+
+- Navegación por hash (`hooks/useRuta.js`): `#/resumen`, `#/trabajos/<id>/<funcionId>`,
+  `#/actividades`, `#/boveda`. Así funciona el botón Atrás del celular.
+- PC (≥ `lg`): menú lateral; celular: menú inferior + botón flotante "+".
+- Una actividad se muestra en una línea (`ActividadFila`); el detalle completo va en
+  el panel (`ActividadDetalle`, abierto con `useUI().abrirDetalle(id)`). El
+  formulario de actividad también se abre desde `useUI()`.
+- Acciones secundarias (editar/eliminar) en `MenuAcciones` (⋯), no como íconos en cada fila.
+- Íconos con `components/ui/Icono.jsx` (no repetir `<path>` en los componentes).
+
 ## Comandos
 
 - `npm run dev` — desarrollo (abrir en Chrome/Edge)
