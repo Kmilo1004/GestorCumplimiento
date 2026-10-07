@@ -1,5 +1,11 @@
 # App de Cumplimiento de Funciones
 
+[![CI](https://github.com/Kmilo1004/GestorCumplimiento/actions/workflows/ci.yml/badge.svg)](https://github.com/Kmilo1004/GestorCumplimiento/actions/workflows/ci.yml)
+
+**Úsala en línea:** https://kmilo1004.github.io/GestorCumplimiento/ (Chrome o Edge).
+La página solo entrega el programa; tus datos se quedan en la carpeta que
+elijas en tu equipo.
+
 App local para que un funcionario organice sus funciones laborales y
 actividades, con seguimiento de cumplimiento, alertas de vencimiento y
 (próximamente) agenda, recordatorios e informes.
@@ -147,6 +153,16 @@ recurrentes, evidencias en PDF y compromisos en la agenda. Las fechas se calcula
 lo ejecutas, así que siempre hay actividades vencidas, próximas y a tiempo.
 Ábrela desde la app con **Bóveda → Cambiar de carpeta**. Para regenerarla,
 borra la carpeta y vuelve a ejecutar el comando (no sobrescribe nada).
+
+## Integración y publicación (GitHub Actions)
+
+El workflow [`.github/workflows/ci.yml`](.github/workflows/ci.yml):
+
+- En cada push y Pull Request corre lint, pruebas y build.
+- Si todo pasa en `main`, publica la app en GitHub Pages.
+
+Configuración única en GitHub: **Settings → Pages → Build and deployment →
+Source: GitHub Actions**.
 
 ## Scripts
 
