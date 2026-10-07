@@ -291,6 +291,21 @@ try {
     }
   }
 
+  // Agenda: compromisos y notas de algunos días alrededor de hoy.
+  const AGENDA = [
+    [-1, [['', '', 'Entrega de informe a control interno', true]], 'Se envió el informe por correo. Pendiente acuse.'],
+    [0, [['09:00', '10:00', 'Comité de seguimiento presupuestal', false], ['14:30', '', 'Llamada con Contraloría', false]], ''],
+    [1, [['08:00', '12:00', 'Capacitación SECOP II', false]], ''],
+    [3, [['10:00', '11:30', 'Reunión del Comité de Convivencia', false]], 'Llevar el acta anterior impresa.'],
+    [8, [['15:00', '16:00', 'Mesa de trabajo con planeación', false]], ''],
+  ]
+  for (const [dias, compromisos, notas] of AGENDA) {
+    await dataService.guardarNotaDiaria(fecha(dias), {
+      compromisos: compromisos.map(([inicio, fin, titulo, hecho]) => ({ inicio, fin, titulo, hecho })),
+      notas,
+    })
+  }
+
   // Volcar el fs en memoria a disco.
   const archivos = fs._snapshot()
   for (const [ruta, contenido] of Object.entries(archivos)) {

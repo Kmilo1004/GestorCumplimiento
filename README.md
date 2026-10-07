@@ -29,6 +29,7 @@ MiBoveda/
 │           ├── Responder PQRS 2026-10.md   ← una actividad
 │           └── Evidencias/
 │               └── Responder PQRS 2026-10/ ← actas, PDF, fotos de esa actividad
+├── Agenda/2026/10/2026-10-07.md        ← nota diaria: compromisos con hora y notas
 ├── .cumplimiento/config.json           ← datos internos de la bóveda
 └── .papelera/                          ← lo que eliminas se mueve aquí
 ```
@@ -71,7 +72,15 @@ Pendiente radicado 123.
   la función. La carpeta manda: lo que pongas ahí desde el explorador aparece
   en la app. Si renombras la actividad desde la app, su carpeta la acompaña
   (si la renombras desde Obsidian, renombra también su carpeta de evidencias).
-- Respaldo: copia la carpeta completa.
+- **Agenda:** vistas de día, semana (por defecto) y mes, con festivos de
+  Colombia. Las actividades aparecen en su fecha límite (en PC se arrastran a
+  otro día para reprogramarlas). Los compromisos con hora (reuniones, citas)
+  y la nota del día se guardan en `Agenda/AAAA/MM/AAAA-MM-DD.md`, compatible
+  con el plugin "Daily notes" de Obsidian (formato `YYYY/MM/YYYY-MM-DD`,
+  carpeta `Agenda`). Los compromisos son casillas `- [ ] 09:00–10:00 …`.
+- Respaldo: copia la carpeta completa. Si la bóveda está en OneDrive, marca la
+  carpeta como "Mantener siempre en este dispositivo" y evita editar la misma
+  nota en dos equipos a la vez (OneDrive crearía copias en conflicto).
 
 Detalles de la decisión en
 [docs/adr/0001-persistencia-en-boveda-de-carpetas.md](docs/adr/0001-persistencia-en-boveda-de-carpetas.md).
@@ -131,7 +140,7 @@ npm run ejemplo
 Crea la carpeta `boveda-ejemplo/` con 3 trabajos, 6 funciones y 15
 actividades de un funcionario (presupuesto, PQRS, entes de control, comité
 de convivencia y formación). Incluye prioridades, etiquetas, actividades
-recurrentes y evidencias en PDF. Las fechas se calculan desde el día en que
+recurrentes, evidencias en PDF y compromisos en la agenda. Las fechas se calculan desde el día en que
 lo ejecutas, así que siempre hay actividades vencidas, próximas y a tiempo.
 Ábrela desde la app con **Bóveda → Cambiar de carpeta**. Para regenerarla,
 borra la carpeta y vuelve a ejecutar el comando (no sobrescribe nada).
@@ -170,7 +179,7 @@ docs/adr/         Decisiones de arquitectura
 | 0 | Fundamentos, ADR, documentación | ✅ |
 | 1 | Bóveda en carpetas (Markdown) | ✅ |
 | 2 | Modelo ampliado: prioridad, etiquetas, recurrencia, evidencias | ✅ |
-| 3 | Agenda: día/semana/mes y notas diarias | Pendiente |
+| 3 | Agenda: día/semana/mes, compromisos y notas diarias | ✅ |
 | 4 | Recordatorios y app de escritorio (Tauri) | Pendiente |
 | 5 | Informes de gestión (Markdown / PDF / Word) | Pendiente |
 | 6 | Calidad: más pruebas y revisión | Continuo |

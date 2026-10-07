@@ -31,6 +31,9 @@ export function DataProvider({ children }) {
   const [error, setError] = useState(null)
   const [boveda, setBoveda] = useState({ estado: 'iniciando', nombre: '' })
   const [migracionPendiente, setMigracionPendiente] = useState(null)
+  // Sube cada vez que la agenda puede haber cambiado (guardado o relectura de
+  // la carpeta), para que las vistas del calendario vuelvan a leerla.
+  const [versionAgenda, setVersionAgenda] = useState(0)
   const handleRef = useRef(null)
 
   const refrescar = useCallback(async ({ recargar = false } = {}) => {
@@ -40,6 +43,7 @@ export function DataProvider({ children }) {
       setTrabajos(datos.trabajos)
       setFunciones(datos.funciones)
       setActividades(datos.actividades)
+      if (recargar) setVersionAgenda((v) => v + 1)
     } catch (err) {
       console.error(err)
       setError(err.message || 'No se pudieron cargar los datos.')
@@ -247,6 +251,21 @@ export function DataProvider({ children }) {
     [actividades],
   )
 
+  // ---- Agenda ----
+
+  const listarAgenda = useCallback((desde, hasta) => dataService.listarAgenda(desde, hasta), [])
+  const leerNotaDiaria = useCallback((fecha) => dataService.leerNotaDiaria(fecha), [])
+  const guardarNotaDiaria = useCallback(async (fecha, datos) => {
+    const nota = await dataService.guardarNotaDiaria(fecha, datos)
+    setVersionAgenda((v) => v + 1)
+    return nota
+  }, [])
+  const modificarNotaDiaria = useCallback(async (fecha, transformar) => {
+    const nota = await dataService.modificarNotaDiaria(fecha, transformar)
+    setVersionAgenda((v) => v + 1)
+    return nota
+  }, [])
+
   const exportarDatos = useCallback(() => dataService.exportarDatos(), [])
 
   const importarDatos = useCallback(
@@ -286,6 +305,11 @@ export function DataProvider({ children }) {
     eliminarEvidencia,
     leerEvidencia,
     etiquetas,
+    versionAgenda,
+    listarAgenda,
+    leerNotaDiaria,
+    guardarNotaDiaria,
+    modificarNotaDiaria,
     exportarDatos,
     importarDatos,
   }

@@ -10,24 +10,26 @@ const UIContext = createContext(null)
 export function UIProvider({ children, onIrATrabajos }) {
   const { arbol, crearActividad, actualizarActividad } = useData()
   const [detalleId, setDetalleId] = useState(null)
-  const [formulario, setFormulario] = useState({ open: false, actividad: null, funcionId: '' })
+  const [formulario, setFormulario] = useState({ open: false, actividad: null, funcionId: '', valores: null })
 
   const abrirDetalle = useCallback((id) => setDetalleId(id), [])
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
 
   // Sin función indicada se preselecciona la primera que exista.
+  // `valores` precarga campos (p. ej. { fecha_limite } desde la agenda).
   const nuevaActividad = useCallback(
-    (funcionId) =>
+    (funcionId, valores = null) =>
       setFormulario({
         open: true,
         actividad: null,
         funcionId: funcionId || arbol.find((t) => t.funciones.length)?.funciones[0]?.id || '',
+        valores,
       }),
     [arbol],
   )
 
   const editarActividad = useCallback((actividad) => {
-    setFormulario({ open: true, actividad, funcionId: actividad.funcionId })
+    setFormulario({ open: true, actividad, funcionId: actividad.funcionId, valores: null })
   }, [])
 
   const cerrarFormulario = useCallback(() => setFormulario((f) => ({ ...f, open: false })), [])
@@ -50,6 +52,7 @@ export function UIProvider({ children, onIrATrabajos }) {
         open={formulario.open}
         actividad={formulario.actividad}
         funcionId={formulario.funcionId}
+        valoresIniciales={formulario.valores}
         onClose={cerrarFormulario}
         onSubmit={guardar}
         onIrATrabajos={onIrATrabajos}

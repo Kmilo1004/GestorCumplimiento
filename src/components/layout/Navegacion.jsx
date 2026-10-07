@@ -4,6 +4,7 @@ import { ESTADOS } from '../../models'
 
 const SECCIONES = [
   { id: 'resumen', etiqueta: 'Resumen', icono: 'inicio' },
+  { id: 'agenda', etiqueta: 'Agenda', icono: 'calendario' },
   { id: 'trabajos', etiqueta: 'Trabajos', icono: 'maletin' },
   { id: 'actividades', etiqueta: 'Actividades', icono: 'tareas' },
   { id: 'boveda', etiqueta: 'Bóveda', icono: 'carpeta' },
@@ -99,7 +100,7 @@ export function MenuInferior({ seccion, navegar }) {
               type="button"
               onClick={() => navegar(s.id)}
               aria-current={activa ? 'page' : undefined}
-              className={`flex flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
+              className={`flex min-w-0 flex-1 flex-col items-center gap-0.5 py-2.5 text-[11px] font-medium ${
                 activa ? 'text-brand-600' : 'text-slate-400'
               }`}
             >

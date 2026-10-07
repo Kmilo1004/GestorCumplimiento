@@ -33,6 +33,10 @@ Todo el texto de la app, comentarios y documentación van **en español**.
   formulario de actividad también se abre desde `useUI()`.
 - Acciones secundarias (editar/eliminar) en `MenuAcciones` (⋯), no como íconos en cada fila.
 - Íconos con `components/ui/Icono.jsx` (no repetir `<path>` en los componentes).
+- Fechas de calendario como texto `YYYY-MM-DD` en hora local (`utils/fechas.js`);
+  nunca `new Date('YYYY-MM-DD')` (lo interpreta en UTC y corre un día).
+- En grillas responsivas usar `grid-cols-1` en móvil: `grid` sin columnas toma el
+  ancho mínimo del contenido y desborda la pantalla.
 
 ## Comandos
 

@@ -6,11 +6,13 @@ import { BotonFlotante, MenuInferior, MenuLateral } from './components/layout/Na
 import Dashboard from './components/dashboard/Dashboard'
 import TrabajosView from './components/trabajos/TrabajosView'
 import ActividadesView from './components/actividades/ActividadesView'
+import AgendaView from './components/agenda/AgendaView'
 import BackupView from './components/backup/BackupView'
 import VaultGate from './components/vault/VaultGate'
 import MigracionBanner from './components/vault/MigracionBanner'
+import { esISO } from './utils/fechas'
 
-const SECCIONES = new Set(['resumen', 'trabajos', 'actividades', 'boveda'])
+const SECCIONES = new Set(['resumen', 'agenda', 'trabajos', 'actividades', 'boveda'])
 
 function ErrorBoveda() {
   const { error, refrescar, elegirBoveda } = useData()
@@ -42,8 +44,8 @@ function ErrorBoveda() {
   )
 }
 
-// Contenido según la ruta: #/resumen, #/trabajos[/<id>[/<funcionId>]],
-// #/actividades, #/boveda.
+// Contenido según la ruta: #/resumen, #/agenda[/<vista>/<fecha>],
+// #/trabajos[/<id>[/<funcionId>]], #/actividades, #/boveda.
 function Contenido({ partes, navegar }) {
   const { loading, error, arbol } = useData()
   const { nuevaActividad } = useUI()
@@ -62,6 +64,8 @@ function Contenido({ partes, navegar }) {
     pagina = <ErrorBoveda />
   } else if (seccion === 'trabajos') {
     pagina = <TrabajosView trabajoId={partes[1]} funcionId={partes[2]} navegar={navegar} />
+  } else if (seccion === 'agenda') {
+    pagina = <AgendaView partes={partes} navegar={navegar} />
   } else if (seccion === 'actividades') {
     pagina = <ActividadesView />
   } else if (seccion === 'boveda') {
@@ -83,7 +87,15 @@ function Contenido({ partes, navegar }) {
         {pagina}
       </main>
       {seccion !== 'boveda' && !loading && !error && (
-        <BotonFlotante onClick={() => nuevaActividad(funcionSugerida)} />
+        <BotonFlotante
+          onClick={() =>
+            // En la vista de un día de la agenda, la actividad nace con esa fecha.
+            nuevaActividad(
+              funcionSugerida,
+              seccion === 'agenda' && partes[1] === 'dia' && esISO(partes[2]) ? { fecha_limite: partes[2] } : null,
+            )
+          }
+        />
       )}
       <MenuInferior seccion={seccion} navegar={navegar} />
     </div>

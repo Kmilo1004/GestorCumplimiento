@@ -33,7 +33,15 @@ const VACIO = {
 // Formulario de actividad. Al crear muestra solo lo esencial (nombre,
 // función, fecha, prioridad); el resto se despliega con "Más opciones".
 // `funcionId` es la función preseleccionada al crear.
-export default function ActividadFormModal({ open, actividad, funcionId, onClose, onSubmit, onIrATrabajos }) {
+export default function ActividadFormModal({
+  open,
+  actividad,
+  funcionId,
+  valoresIniciales,
+  onClose,
+  onSubmit,
+  onIrATrabajos,
+}) {
   const { arbol, etiquetas, leerEvidencia, eliminarEvidencia } = useData()
   const [form, setForm] = useState(VACIO)
   const [masOpciones, setMasOpciones] = useState(false)
@@ -60,7 +68,7 @@ export default function ActividadFormModal({ open, actividad, funcionId, onClose
             tags: actividad.tags ?? [],
             recurrencia: actividad.recurrencia || '',
           }
-        : { ...VACIO, funcionId: funcionId || '' },
+        : { ...VACIO, ...valoresIniciales, funcionId: funcionId || '' },
     )
     setMasOpciones(Boolean(actividad))
     setArchivos([])
@@ -69,7 +77,7 @@ export default function ActividadFormModal({ open, actividad, funcionId, onClose
     // `arbol` no va en las dependencias: cambia en cada guardado y borraría
     // lo que el usuario está escribiendo. La función por defecto la decide
     // quien abre el formulario (UIContext).
-  }, [open, actividad, funcionId])
+  }, [open, actividad, funcionId, valoresIniciales])
 
   const set = (cambios) => setForm((f) => ({ ...f, ...cambios }))
   // Si la función preseleccionada ya no existe (URL vieja, cambio hecho en

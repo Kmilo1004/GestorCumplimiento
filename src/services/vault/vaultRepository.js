@@ -5,6 +5,7 @@
 //   Trabajos/<Trabajo>/<Función>/_funcion.md
 //   Trabajos/<Trabajo>/<Función>/<Actividad>.md
 //   Trabajos/<Trabajo>/<Función>/Evidencias/<Actividad>/<adjuntos>
+//   Agenda/AAAA/MM/AAAA-MM-DD.md   (nota diaria con compromisos, ver notaDiaria.js)
 //
 // Reglas:
 // - El nombre de cada entidad es el nombre de su carpeta o archivo.
@@ -31,6 +32,7 @@ import {
   leerActividad,
   leerContenedor,
 } from './markdown'
+import { escribirNotaDiaria, leerNotaDiaria } from './notaDiaria'
 
 export const CARPETA_TRABAJOS = 'Trabajos'
 export const CARPETA_PAPELERA = '.papelera'
@@ -38,6 +40,7 @@ export const ARCHIVO_CONFIG = '.cumplimiento/config.json'
 export const ARCHIVO_TRABAJO = '_trabajo.md'
 export const ARCHIVO_FUNCION = '_funcion.md'
 export const CARPETA_EVIDENCIAS = 'Evidencias'
+export const CARPETA_AGENDA = 'Agenda'
 export const FORMATO_BOVEDA = 1
 
 const EXT = '.md'
@@ -448,7 +451,72 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     })
   }
 
+  // ---------- Agenda (notas diarias) ----------
+
+  const rutaNotaDiaria = (fecha) => joinPath(CARPETA_AGENDA, fecha.slice(0, 4), fecha.slice(5, 7), `${fecha}.md`)
+  const esNotaDiaria = ({ name, kind }) => kind === 'file' && /^\d{4}-\d{2}-\d{2}\.md$/.test(name)
+
+  function notaDesdeTexto(fecha, texto) {
+    const { compromisos, notas } = leerNotaDiaria(texto ?? '')
+    return { fecha, compromisos, notas, existe: texto !== null }
+  }
+
+  function leerNotaDelDia(fecha) {
+    return enCola(async () => notaDesdeTexto(fecha, await fs.readFile(rutaNotaDiaria(fecha))))
+  }
+
+  // Lee la nota del día, aplica `transformar({ compromisos, notas })` y la
+  // guarda, todo dentro de la cola: dos cambios seguidos (marcar dos
+  // compromisos, autoguardado de la nota) no se pisan entre sí.
+  // Si el día no tenía nota y no queda nada que guardar, no crea un archivo vacío.
+  function modificarNotaDelDia(fecha, transformar) {
+    return enCola(async () => {
+      const ruta = rutaNotaDiaria(fecha)
+      const anterior = await fs.readFile(ruta)
+      const actual = notaDesdeTexto(fecha, anterior)
+      const { compromisos = [], notas = '' } = transformar({ compromisos: actual.compromisos, notas: actual.notas })
+      if (anterior === null && !compromisos.length && !notas.trim()) return actual
+      const texto = escribirNotaDiaria(fecha, { compromisos, notas }, anterior ?? '')
+      await fs.writeFile(ruta, texto)
+      return notaDesdeTexto(fecha, texto)
+    })
+  }
+
+  function guardarNotaDelDia(fecha, datos) {
+    return modificarNotaDelDia(fecha, () => datos)
+  }
+
+  // Notas diarias entre dos fechas (inclusive): solo lee las carpetas de los
+  // meses del rango.
+  function listarAgenda(desde, hasta) {
+    return enCola(async () => {
+      const meses = []
+      for (let y = Number(desde.slice(0, 4)), m = Number(desde.slice(5, 7)); ; ) {
+        meses.push([String(y), String(m).padStart(2, '0')])
+        if (`${y}-${String(m).padStart(2, '0')}` >= hasta.slice(0, 7)) break
+        m++
+        if (m > 12) {
+          m = 1
+          y++
+        }
+      }
+      const porMes = await Promise.all(
+        meses.map(async ([y, m]) => {
+          const entradas = ((await fs.listDir(joinPath(CARPETA_AGENDA, y, m))) ?? []).filter(esNotaDiaria)
+          return entradas.map((e) => e.name.slice(0, 10)).filter((f) => f >= desde && f <= hasta)
+        }),
+      )
+      const fechas = porMes.flat().sort()
+      const textos = await Promise.all(fechas.map((f) => fs.readFile(rutaNotaDiaria(f))))
+      return fechas.map((f, i) => notaDesdeTexto(f, textos[i]))
+    })
+  }
+
   return {
+    leerNotaDelDia,
+    guardarNotaDelDia,
+    modificarNotaDelDia,
+    listarAgenda,
     cargar,
     obtener,
     guardarTrabajo,

@@ -76,7 +76,7 @@ export default function Dashboard({ navegar }) {
           />
         </div>
 
-        <div className="grid gap-6 lg:grid-cols-5">
+        <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <section className="lg:col-span-3">
             <h2 className="mb-2 text-sm font-semibold text-slate-700">Requiere atención</h2>
             <ListaAgrupada

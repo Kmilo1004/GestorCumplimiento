@@ -163,3 +163,50 @@ describe('evidencias huérfanas', () => {
     expect(archivos.some((p) => p.startsWith('.papelera/') && p.endsWith('Evidencias/Acta/viejo.pdf'))).toBe(true)
   })
 })
+
+describe('agenda', () => {
+  const comite = { hecho: false, inicio: '09:00', fin: '10:00', titulo: 'Comité' }
+
+  it('guarda la nota del día en Agenda/AAAA/MM y la lista por rango', async () => {
+    await dataService.guardarNotaDiaria('2026-10-07', { compromisos: [comite], notas: 'Llevar acta' })
+    await dataService.guardarNotaDiaria('2026-11-02', { compromisos: [], notas: 'Festivo' })
+    expect(fs._snapshot()['Agenda/2026/10/2026-10-07.md']).toContain('- [ ] 09:00–10:00 Comité')
+
+    const octubre = await dataService.listarAgenda('2026-10-01', '2026-10-31')
+    expect(octubre).toEqual([{ fecha: '2026-10-07', compromisos: [comite], notas: 'Llevar acta', existe: true }])
+    const dosMeses = await dataService.listarAgenda('2026-09-28', '2026-11-08')
+    expect(dosMeses.map((n) => n.fecha)).toEqual(['2026-10-07', '2026-11-02'])
+  })
+
+  it('un día sin nada no crea archivo', async () => {
+    const nota = await dataService.guardarNotaDiaria('2026-10-08', { compromisos: [], notas: '  ' })
+    expect(nota.existe).toBe(false)
+    expect(Object.keys(fs._snapshot()).some((p) => p.startsWith('Agenda/'))).toBe(false)
+  })
+
+  it('la agenda no aparece como trabajos al releer la bóveda', async () => {
+    await dataService.guardarNotaDiaria('2026-10-07', { compromisos: [comite], notas: '' })
+    const { trabajos } = await dataService.cargarTodo({ recargar: true })
+    expect(trabajos).toEqual([])
+  })
+})
+
+describe('agenda: cambios concurrentes', () => {
+  it('dos cambios simultáneos sobre el mismo día no se pisan', async () => {
+    const a = { hecho: false, inicio: '08:00', fin: '', titulo: 'A' }
+    const b = { hecho: false, inicio: '09:00', fin: '', titulo: 'B' }
+    await dataService.guardarNotaDiaria('2026-10-07', { compromisos: [a, b], notas: '' })
+    const marcar = (titulo) => (n) => ({
+      ...n,
+      compromisos: n.compromisos.map((c) => (c.titulo === titulo ? { ...c, hecho: true } : c)),
+    })
+    await Promise.all([
+      dataService.modificarNotaDiaria('2026-10-07', marcar('A')),
+      dataService.modificarNotaDiaria('2026-10-07', marcar('B')),
+      dataService.modificarNotaDiaria('2026-10-07', (n) => ({ ...n, notas: 'escrita a la vez' })),
+    ])
+    const nota = await dataService.leerNotaDiaria('2026-10-07')
+    expect(nota.compromisos.map((c) => c.hecho)).toEqual([true, true])
+    expect(nota.notas).toBe('escrita a la vez')
+  })
+})

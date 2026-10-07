@@ -28,7 +28,7 @@ export default function Tablero({ actividades, mostrarContexto = false, onAgrega
   }
 
   return (
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
       {ESTADO_LIST.map((estado) => {
         const columna = actividades.filter((a) => a.estado === estado).sort(compararActividades)
         return (

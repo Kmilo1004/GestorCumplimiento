@@ -184,6 +184,27 @@ export function eliminarActividad(id) {
   return repositorio().eliminarActividad(id)
 }
 
+// ---------- Agenda: notas diarias y compromisos ----------
+
+// [{ fecha, compromisos, notas, existe }] de los días que tienen nota.
+export function listarAgenda(desde, hasta) {
+  return repositorio().listarAgenda(desde, hasta)
+}
+
+export function leerNotaDiaria(fecha) {
+  return repositorio().leerNotaDelDia(fecha)
+}
+
+// compromisos: [{ hecho, inicio, fin, titulo }]; notas: texto libre.
+export function guardarNotaDiaria(fecha, { compromisos, notas }) {
+  return repositorio().guardarNotaDelDia(fecha, { compromisos, notas })
+}
+
+// Cambio atómico: transformar({ compromisos, notas }) -> { compromisos, notas }.
+export function modificarNotaDiaria(fecha, transformar) {
+  return repositorio().modificarNotaDelDia(fecha, transformar)
+}
+
 // ---------- Backup: exportar / importar JSON ----------
 
 export async function exportarDatos() {
