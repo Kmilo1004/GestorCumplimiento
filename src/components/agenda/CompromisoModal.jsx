@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import Modal from '../ui/Modal'
-import { Field, TextInput } from '../ui/Field'
+import { Field, Select, TextInput } from '../ui/Field'
+import { ESTADO_COMPROMISO, conEstado, estadoCompromiso } from '../../utils/compromisos'
 
-const VACIO = { titulo: '', fecha: '', inicio: '', fin: '', hecho: false }
+const VACIO = { titulo: '', fecha: '', inicio: '', fin: '', estado: ESTADO_COMPROMISO.PENDIENTE }
 
 // Crear o editar un compromiso (reunión, cita, comité…). Se guarda en la nota
 // diaria del día elegido; cambiar la fecha lo mueve a otra nota.
@@ -14,7 +15,12 @@ export default function CompromisoModal({ abierto, inicial, onClose, onGuardar, 
 
   useEffect(() => {
     if (!abierto) return
-    setForm({ ...VACIO, ...inicial?.compromiso, fecha: inicial?.fecha ?? '' })
+    const c = inicial?.compromiso
+    setForm({
+      ...VACIO,
+      ...(c && { titulo: c.titulo, inicio: c.inicio, fin: c.fin, estado: estadoCompromiso(c) }),
+      fecha: inicial?.fecha ?? '',
+    })
     setError('')
   }, [abierto, inicial])
 
@@ -29,7 +35,7 @@ export default function CompromisoModal({ abierto, inicial, onClose, onGuardar, 
     try {
       await onGuardar({
         fecha: form.fecha,
-        compromiso: { titulo: form.titulo.trim(), inicio: form.inicio, fin: form.fin, hecho: form.hecho },
+        compromiso: conEstado({ titulo: form.titulo.trim(), inicio: form.inicio, fin: form.fin }, form.estado),
       })
       onClose()
     } catch (err) {
@@ -63,7 +69,18 @@ export default function CompromisoModal({ abierto, inicial, onClose, onGuardar, 
             <TextInput type="time" value={form.fin} onChange={(e) => set({ fin: e.target.value })} />
           </Field>
         </div>
-        <p className="-mt-1 mb-3 text-xs text-slate-400">Sin hora = todo el día.</p>
+        <p className="-mt-1 mb-3 text-xs text-slate-400">
+          Sin hora = todo el día. Cuando su hora pasa, se marca como realizado automáticamente.
+        </p>
+        {esEdicion && (
+          <Field label="Estado">
+            <Select value={form.estado} onChange={(e) => set({ estado: e.target.value })}>
+              <option value={ESTADO_COMPROMISO.PENDIENTE}>Pendiente</option>
+              <option value={ESTADO_COMPROMISO.HECHO}>Realizado</option>
+              <option value={ESTADO_COMPROMISO.CANCELADO}>No se realizó</option>
+            </Select>
+          </Field>
+        )}
 
         {error && <p className="mb-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</p>}
 

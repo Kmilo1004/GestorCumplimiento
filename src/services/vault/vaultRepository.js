@@ -33,6 +33,8 @@ import {
   leerContenedor,
 } from './markdown'
 import { escribirNotaDiaria, leerNotaDiaria } from './notaDiaria'
+import { marcarPasados } from '../../utils/compromisos'
+import { aISO } from '../../utils/fechas'
 
 export const CARPETA_TRABAJOS = 'Trabajos'
 export const CARPETA_PAPELERA = '.papelera'
@@ -512,7 +514,44 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     })
   }
 
+  // Marca como hechos los compromisos que ya pasaron, en las notas desde
+  // `desde` (o todas si es null) hasta hoy. Solo escribe las que cambian.
+  // Devuelve cuántas notas se actualizaron.
+  function marcarCompromisosPasados(ahora = new Date(), { desde = null } = {}) {
+    return enCola(async () => {
+      const hoy = aISO(ahora)
+      const anios = ((await fs.listDir(CARPETA_AGENDA)) ?? []).filter(
+        (e) => e.kind === 'directory' && /^\d{4}$/.test(e.name) && (!desde || e.name >= desde.slice(0, 4)) && e.name <= hoy.slice(0, 4),
+      )
+      let actualizadas = 0
+      for (const { name: anio } of anios) {
+        const meses = ((await fs.listDir(joinPath(CARPETA_AGENDA, anio))) ?? []).filter(
+          (e) => e.kind === 'directory' && /^\d{2}$/.test(e.name),
+        )
+        for (const { name: mes } of meses) {
+          if ((desde && `${anio}-${mes}` < desde.slice(0, 7)) || `${anio}-${mes}` > hoy.slice(0, 7)) continue
+          const fechas = ((await fs.listDir(joinPath(CARPETA_AGENDA, anio, mes))) ?? [])
+            .filter(esNotaDiaria)
+            .map((e) => e.name.slice(0, 10))
+            .filter((f) => f <= hoy && (!desde || f >= desde))
+          for (const fecha of fechas) {
+            const ruta = rutaNotaDiaria(fecha)
+            const texto = await fs.readFile(ruta)
+            if (texto === null) continue
+            const nota = leerNotaDiaria(texto)
+            const { compromisos, cambio } = marcarPasados(fecha, nota.compromisos, ahora)
+            if (!cambio) continue
+            await fs.writeFile(ruta, escribirNotaDiaria(fecha, { compromisos, notas: nota.notas }, texto))
+            actualizadas++
+          }
+        }
+      }
+      return actualizadas
+    })
+  }
+
   return {
+    marcarCompromisosPasados,
     leerNotaDelDia,
     guardarNotaDelDia,
     modificarNotaDelDia,

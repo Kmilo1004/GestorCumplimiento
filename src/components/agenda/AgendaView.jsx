@@ -11,6 +11,7 @@ import { useAgenda } from '../../hooks/useAgenda'
 import { usePreferencia } from '../../hooks/usePreferencia'
 import { ESTADOS } from '../../models'
 import { compararActividades } from '../../utils/alerts'
+import { conEstado, siguienteEstado } from '../../utils/compromisos'
 import {
   cuadriculaMes,
   diasDeSemana,
@@ -30,7 +31,11 @@ const VISTAS = [
 ]
 
 const mismoCompromiso = (a, b) =>
-  a.titulo === b.titulo && a.inicio === b.inicio && a.fin === b.fin && a.hecho === b.hecho
+  a.titulo === b.titulo &&
+  a.inicio === b.inicio &&
+  a.fin === b.fin &&
+  Boolean(a.hecho) === Boolean(b.hecho) &&
+  Boolean(a.cancelado) === Boolean(b.cancelado)
 
 // Reemplaza (o quita, si `nuevo` es null) el primer compromiso igual a `objetivo`.
 function reemplazarPrimero(lista, objetivo, nuevo) {
@@ -110,7 +115,11 @@ export default function AgendaView({ partes, navegar }) {
     abrirDia: (dia) => ir('dia', dia),
     nuevoCompromiso: (dia) => setModal({ fecha: dia, compromiso: null }),
     editarCompromiso: (dia, c) => setModal({ fecha: dia, compromiso: c, original: { fecha: dia, compromiso: c } }),
-    alternarCompromiso: conError((dia, c) => modificarDia(dia, (l) => reemplazarPrimero(l, c, { ...c, hecho: !c.hecho }))),
+    // En uno que ya pasó, la casilla alterna entre "hecho" y "no se realizó".
+    siguienteDe: (dia, c) => siguienteEstado(dia, c),
+    alternarCompromiso: conError((dia, c) =>
+      modificarDia(dia, (l) => reemplazarPrimero(l, c, conEstado(c, siguienteEstado(dia, c)))),
+    ),
     reprogramar: conError((id, dia) => actualizarActividad(id, { fecha_limite: dia })),
     nuevaActividad: (dia) => nuevaActividad(undefined, { fecha_limite: dia }),
   }

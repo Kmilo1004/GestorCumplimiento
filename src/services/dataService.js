@@ -200,6 +200,12 @@ export function guardarNotaDiaria(fecha, { compromisos, notas }) {
   return repositorio().guardarNotaDelDia(fecha, { compromisos, notas })
 }
 
+// Marca hechos los compromisos que ya pasaron (desde `desde` o en toda la
+// agenda). Devuelve cuántas notas cambiaron.
+export function marcarCompromisosPasados(ahora, opciones) {
+  return repositorio().marcarCompromisosPasados(ahora, opciones)
+}
+
 // Cambio atómico: transformar({ compromisos, notas }) -> { compromisos, notas }.
 export function modificarNotaDiaria(fecha, transformar) {
   return repositorio().modificarNotaDelDia(fecha, transformar)

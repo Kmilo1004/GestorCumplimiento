@@ -1,6 +1,9 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as dataService from '../services/dataService'
 import { unicasSinMayusculas } from '../models'
+import { aISO, sumarDias } from '../utils/fechas'
+
+const MINUTO = 60_000
 import { construirArbol, resumenGeneral } from '../utils/compliance'
 
 // Estados de la bóveda:
@@ -118,6 +121,30 @@ export function DataProvider({ children }) {
       document.removeEventListener('visibilitychange', alVolver)
     }
   }, [boveda.estado, refrescar])
+
+  // Compromisos que ya pasaron -> hechos. Al abrir la bóveda se revisa toda la
+  // agenda; luego, cada minuto, solo hoy y ayer (por si pasó la medianoche).
+  useEffect(() => {
+    if (boveda.estado !== 'lista') return
+    let activo = true
+    const revisar = async (completo) => {
+      try {
+        const ahora = new Date()
+        const cambiadas = await dataService.marcarCompromisosPasados(ahora, {
+          desde: completo ? null : sumarDias(aISO(ahora), -1),
+        })
+        if (activo && cambiadas > 0) setVersionAgenda((v) => v + 1)
+      } catch (err) {
+        console.error('No se pudieron marcar los compromisos pasados:', err)
+      }
+    }
+    revisar(true)
+    const intervalo = setInterval(() => revisar(false), MINUTO)
+    return () => {
+      activo = false
+      clearInterval(intervalo)
+    }
+  }, [boveda.estado, boveda.nombre])
 
   // Deben llamarse desde un clic (el navegador lo exige).
   const elegirBoveda = useCallback(async () => {

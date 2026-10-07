@@ -129,6 +129,7 @@ export default function VistaDia({ fecha, itemsDe, nota, cargando, acciones, act
                   <CompromisoItem
                     key={`c${i}`}
                     compromiso={c}
+                    siguiente={acciones.siguienteDe(fecha, c)}
                     onToggle={() => acciones.alternarCompromiso(fecha, c)}
                     onEditar={() => acciones.editarCompromiso(fecha, c)}
                   />

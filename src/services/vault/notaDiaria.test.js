@@ -7,9 +7,9 @@ describe('nota diaria', () => {
       '---\nfecha: 2026-10-07\n---\n## Agenda\n\n- [ ] 9:00-10:30 Comité\n- [x] 14:00 Llamada\n- Capacitación\n\n## Notas\n\nTodo bien.\n',
     )
     expect(compromisos).toEqual([
-      { hecho: false, inicio: '09:00', fin: '10:30', titulo: 'Comité' },
-      { hecho: true, inicio: '14:00', fin: '', titulo: 'Llamada' },
-      { hecho: false, inicio: '', fin: '', titulo: 'Capacitación' },
+      { hecho: false, cancelado: false, inicio: '09:00', fin: '10:30', titulo: 'Comité' },
+      { hecho: true, cancelado: false, inicio: '14:00', fin: '', titulo: 'Llamada' },
+      { hecho: false, cancelado: false, inicio: '', fin: '', titulo: 'Capacitación' },
     ])
     expect(notas).toBe('Todo bien.')
   })
@@ -30,7 +30,10 @@ describe('nota diaria', () => {
 
   it('ida y vuelta conserva los datos', () => {
     const datos = {
-      compromisos: [{ hecho: false, inicio: '08:00', fin: '09:00', titulo: 'Revisión – presupuesto' }],
+      compromisos: [
+        { hecho: false, cancelado: false, inicio: '08:00', fin: '09:00', titulo: 'Revisión – presupuesto' },
+        { hecho: false, cancelado: true, inicio: '15:00', fin: '', titulo: 'Visita cancelada' },
+      ],
       notas: 'Línea 1\n\nLínea 2',
     }
     const { compromisos, notas } = leerNotaDiaria(escribirNotaDiaria('2026-10-07', datos))

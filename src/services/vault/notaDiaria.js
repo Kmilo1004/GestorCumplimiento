@@ -9,6 +9,7 @@
 //
 //   - [ ] 09:00–10:00 Comité de convivencia
 //   - [x] 14:00 Llamada con Contraloría
+//   - [-] 16:00 Reunión que no se realizó (tarea cancelada en Obsidian)
 //   - [ ] Capacitación (todo el día)
 //
 //   ## Notas
@@ -22,12 +23,12 @@ import { separarFrontmatter, unirFrontmatter } from './markdown'
 
 const ENCABEZADO = /^##[ \t]+(.+?)[ \t]*#*[ \t]*$/
 const COMPROMISO =
-  /^\s*[-*+]\s+(?:\[([ xX])\]\s+)?(?:(\d{1,2}:\d{2})(?:\s*(?:–|—|-|a)\s*(\d{1,2}:\d{2}))?\s+)?(.*\S)\s*$/
+  /^\s*[-*+]\s+(?:\[([ xX-])\]\s+)?(?:(\d{1,2}:\d{2})(?:\s*(?:–|—|-|a)\s*(\d{1,2}:\d{2}))?\s+)?(.*\S)\s*$/
 
 const clave = (titulo) =>
   titulo
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .trim()
     .toLowerCase()
 
@@ -66,6 +67,7 @@ export function leerNotaDiaria(texto = '') {
     if (m) {
       compromisos.push({
         hecho: m[1] === 'x' || m[1] === 'X',
+        cancelado: m[1] === '-',
         inicio: hora(m[2]),
         fin: hora(m[3]),
         titulo: m[4],
@@ -84,9 +86,10 @@ export function leerNotaDiaria(texto = '') {
   }
 }
 
-export function lineaCompromiso({ hecho, inicio, fin, titulo }) {
+export function lineaCompromiso({ hecho, cancelado, inicio, fin, titulo }) {
   const horario = inicio ? (fin ? `${inicio}–${fin} ` : `${inicio} `) : ''
-  return `- [${hecho ? 'x' : ' '}] ${horario}${titulo.trim()}`
+  const marca = cancelado ? '-' : hecho ? 'x' : ' '
+  return `- [${marca}] ${horario}${titulo.trim()}`
 }
 
 // Primero los de todo el día, luego por hora de inicio.

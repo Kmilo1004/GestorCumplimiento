@@ -78,6 +78,9 @@ Pendiente radicado 123.
   y la nota del día se guardan en `Agenda/AAAA/MM/AAAA-MM-DD.md`, compatible
   con el plugin "Daily notes" de Obsidian (formato `YYYY/MM/YYYY-MM-DD`,
   carpeta `Agenda`). Los compromisos son casillas `- [ ] 09:00–10:00 …`.
+  Cuando su hora de fin (o de inicio, o el día completo si no tienen hora)
+  ya pasó, la app los marca `[x]` sola. Si uno no se realizó, se marca como
+  "No se realizó" (`- [-]`, tarea cancelada en Obsidian) y ya no se toca.
 - Respaldo: copia la carpeta completa. Si la bóveda está en OneDrive, marca la
   carpeta como "Mantener siempre en este dispositivo" y evita editar la misma
   nota en dos equipos a la vez (OneDrive crearía copias en conflicto).

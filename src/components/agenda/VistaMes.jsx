@@ -89,6 +89,7 @@ export default function VistaMes({ fecha, itemsDe, acciones }) {
                     compromiso={c}
                     compacto
                     unaLinea
+                    siguiente={acciones.siguienteDe(dia, c)}
                     onToggle={() => acciones.alternarCompromiso(dia, c)}
                     onEditar={() => acciones.editarCompromiso(dia, c)}
                   />

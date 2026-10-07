@@ -16,7 +16,7 @@ const FILTROS_INICIALES = { estado: '', trabajoId: '', prioridad: '', etiqueta: 
 const normalizar = (texto) =>
   String(texto ?? '')
     .normalize('NFD')
-    .replace(/[̀-ͯ]/g, '')
+    .replace(/[\u0300-\u036f]/g, '')
     .toLowerCase()
 
 const igualSinMayusculas = (a, b) => a.toLocaleLowerCase('es') === b.toLocaleLowerCase('es')

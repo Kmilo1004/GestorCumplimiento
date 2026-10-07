@@ -29,7 +29,8 @@ export default function VistaSemana({ fecha, itemsDe, acciones }) {
             key={`c${i}`}
             compromiso={c}
             compacto={compacto}
-            onToggle={() => acciones.alternarCompromiso(dia, c)}
+            siguiente={acciones.siguienteDe(dia, c)}
+                    onToggle={() => acciones.alternarCompromiso(dia, c)}
             onEditar={() => acciones.editarCompromiso(dia, c)}
           />
         ))}

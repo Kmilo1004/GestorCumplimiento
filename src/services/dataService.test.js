@@ -165,7 +165,7 @@ describe('evidencias huérfanas', () => {
 })
 
 describe('agenda', () => {
-  const comite = { hecho: false, inicio: '09:00', fin: '10:00', titulo: 'Comité' }
+  const comite = { hecho: false, cancelado: false, inicio: '09:00', fin: '10:00', titulo: 'Comité' }
 
   it('guarda la nota del día en Agenda/AAAA/MM y la lista por rango', async () => {
     await dataService.guardarNotaDiaria('2026-10-07', { compromisos: [comite], notas: 'Llevar acta' })
@@ -208,5 +208,37 @@ describe('agenda: cambios concurrentes', () => {
     const nota = await dataService.leerNotaDiaria('2026-10-07')
     expect(nota.compromisos.map((c) => c.hecho)).toEqual([true, true])
     expect(nota.notas).toBe('escrita a la vez')
+  })
+})
+
+describe('compromisos que ya pasaron', () => {
+  const ahora = new Date(2026, 9, 7, 11, 30)
+  const comp = (titulo, inicio = '', extra = {}) => ({ titulo, inicio, fin: '', hecho: false, cancelado: false, ...extra })
+
+  it('se marcan [x] en la nota; los cancelados y los futuros no', async () => {
+    await dataService.guardarNotaDiaria('2026-09-30', { compromisos: [comp('Viejo')], notas: 'n' })
+    await dataService.guardarNotaDiaria('2026-10-07', {
+      compromisos: [comp('Mañana', '09:00'), comp('Tarde', '15:00'), comp('Cancelada', '08:00', { cancelado: true })],
+      notas: '',
+    })
+    await dataService.guardarNotaDiaria('2026-10-08', { compromisos: [comp('Futuro', '08:00')], notas: '' })
+
+    expect(await dataService.marcarCompromisosPasados(ahora)).toBe(2)
+    const snap = fs._snapshot()
+    expect(snap['Agenda/2026/09/2026-09-30.md']).toContain('- [x] Viejo')
+    expect(snap['Agenda/2026/09/2026-09-30.md']).toContain('## Notas\n\nn')
+    expect(snap['Agenda/2026/10/2026-10-07.md']).toContain('- [x] 09:00 Mañana')
+    expect(snap['Agenda/2026/10/2026-10-07.md']).toContain('- [ ] 15:00 Tarde')
+    expect(snap['Agenda/2026/10/2026-10-07.md']).toContain('- [-] 08:00 Cancelada')
+    expect(snap['Agenda/2026/10/2026-10-08.md']).toContain('- [ ] 08:00 Futuro')
+
+    // Segunda pasada: nada que cambiar.
+    expect(await dataService.marcarCompromisosPasados(ahora)).toBe(0)
+  })
+
+  it('con `desde` solo revisa ese rango', async () => {
+    await dataService.guardarNotaDiaria('2026-09-30', { compromisos: [comp('Viejo')], notas: '' })
+    expect(await dataService.marcarCompromisosPasados(ahora, { desde: '2026-10-06' })).toBe(0)
+    expect(fs._snapshot()['Agenda/2026/09/2026-09-30.md']).toContain('- [ ] Viejo')
   })
 })

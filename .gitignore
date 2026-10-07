@@ -12,4 +12,4 @@ yarn-debug.log*
 yarn-error.log*
 
 # Bóveda de ejemplo generada con `npm run ejemplo`
-boveda-ejemplo/
+boveda-ejemplo*/
