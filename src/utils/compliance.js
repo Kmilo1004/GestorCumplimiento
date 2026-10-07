@@ -2,7 +2,7 @@
 // Actividad (según estado) -> Función (promedio de sus actividades)
 // -> Trabajo (promedio de sus funciones).
 //
-// Funciones puras: reciben datos ya cargados, no tocan IndexedDB.
+// Funciones puras: reciben datos ya cargados, no tocan la bóveda ni el disco.
 
 import { PROGRESO_POR_ESTADO, ESTADOS } from '../models'
 

@@ -2,8 +2,8 @@
 // Jerarquía: Trabajo -> Función -> Actividad
 //
 // Estas fábricas definen la "forma" de cada entidad. No dependen de
-// IndexedDB ni de ninguna capa de persistencia: son puro JS, para que
-// tanto services/ (Fase 1: IndexedDB, Fase 2: Firestore) como la UI
+// ninguna capa de persistencia: son puro JS, para que
+// tanto services/ (la bóveda de archivos Markdown) como la UI
 // compartan siempre la misma forma de objeto.
 
 export const ESTADOS = {
@@ -34,7 +34,7 @@ export const ALERTA = {
   COMPLETADA: 'completada',
 }
 
-function generarId() {
+export function generarId() {
   if (typeof crypto !== 'undefined' && crypto.randomUUID) {
     return crypto.randomUUID()
   }

@@ -1,5 +1,5 @@
 // Lógica de alertas de vencimiento para actividades.
-// Funciones puras basadas en fechas; no dependen de IndexedDB ni de React.
+// Funciones puras basadas en fechas; no dependen del almacenamiento ni de React.
 
 import { ALERTA, ESTADOS } from '../models'
 

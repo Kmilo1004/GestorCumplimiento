@@ -17,7 +17,7 @@ const TABS = [
   { id: 'dashboard', label: 'Resumen' },
   { id: 'trabajos', label: 'Trabajos' },
   { id: 'actividades', label: 'Actividades' },
-  { id: 'backup', label: 'Backup' },
+  { id: 'backup', label: 'Bóveda' },
 ]
 
 export default function BottomNav({ active, onChange }) {

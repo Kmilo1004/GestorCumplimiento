@@ -3,8 +3,8 @@ import { defineConfig } from 'vite'
 
 // https://vite.dev/config/
 export default defineConfig({
-  // Rutas relativas: imprescindible para que la app funcione al desplegarse
-  // en GitHub Pages (repo.github.io/nombre-repo/...) sin backend.
+  // Rutas relativas: la app funciona servida desde cualquier carpeta
+  // (y luego empaquetada en Tauri) sin backend.
   base: './',
   plugins: [react()],
   build: {

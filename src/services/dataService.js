@@ -1,123 +1,103 @@
 // dataService: API pública de datos que usa la UI (a través de DataContext).
 //
-// Esta es la ÚNICA capa que la interfaz conoce. Hoy está implementada con
-// IndexedDB (`indexedDB.js`). En Fase 2, cuando se agregue sincronización
-// con Firebase Firestore, este archivo se puede reescribir (o convertir en
-// un "router" que decida entre local/remoto) sin tocar componentes, el
-// Context ni los `utils/` de cálculo, porque todos ellos solo conocen las
-// firmas de las funciones exportadas aquí.
+// Esta es la ÚNICA capa que la interfaz conoce. Los datos viven en una
+// bóveda de carpetas con archivos Markdown (ver
+// docs/adr/0001-persistencia-en-boveda-de-carpetas.md). El acceso a disco
+// está detrás de la interfaz de `services/fs`, así que pasar a Tauri solo
+// requiere otra implementación de esa interfaz, no cambios aquí ni en la UI.
 
-import { STORES, getAll, getByIndex, getOne, put, remove, bulkPut, clearAll } from './indexedDB'
-import { crearTrabajo, crearFuncion, crearActividad } from '../models'
+import { crearActividad, crearFuncion, crearTrabajo } from '../models'
+import { createWebFs } from './fs/webFs'
+import { createVaultRepository } from './vault/vaultRepository'
+
+// Selección de la carpeta y migración: se exponen aquí para que el Context
+// no dependa de los módulos internos de services/.
+export {
+  carpetaGuardada,
+  elegirCarpeta,
+  estadoPermiso,
+  guardarConfig,
+  leerConfig,
+  navegadorCompatible,
+  pedirPermiso,
+} from './vault/vaultHandle'
+export { leerDatosAnteriores } from './legacyIndexedDB'
 
 const EXPORT_VERSION = 1
 
+let repo = null
+
+// Conecta la bóveda (carpeta elegida por el usuario) como almacenamiento.
+export function conectarBoveda(directoryHandle) {
+  repo = createVaultRepository(createWebFs(directoryHandle))
+}
+
+function repositorio() {
+  if (!repo) throw new Error('No hay una bóveda abierta.')
+  return repo
+}
+
+const porNombre = (a, b) => a.nombre.localeCompare(b.nombre, 'es')
+
+// ---------- Carga completa ----------
+
+// Trae las tres colecciones; DataContext arma el árbol. Con `recargar` vuelve
+// a leer las carpetas para reflejar cambios hechos fuera de la app.
+export async function cargarTodo({ recargar = false } = {}) {
+  const { trabajos, funciones, actividades } = await repositorio().cargar({ recargar })
+  return {
+    trabajos: trabajos.sort(porNombre),
+    funciones: funciones.sort(porNombre),
+    actividades: actividades.sort((a, b) => (a.fecha_limite || '').localeCompare(b.fecha_limite || '')),
+  }
+}
+
+async function actualizar(tipo, guardar, id, cambios, mensaje) {
+  const actual = await repositorio().obtener(tipo, id)
+  if (!actual) throw new Error(mensaje)
+  return guardar({ ...actual, ...cambios, id, updatedAt: new Date().toISOString() })
+}
+
 // ---------- Trabajos ----------
 
-export async function listarTrabajos() {
-  const trabajos = await getAll(STORES.TRABAJOS)
-  return trabajos.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+export function crearTrabajoService(datos) {
+  return repositorio().guardarTrabajo(crearTrabajo(datos))
 }
 
-export async function obtenerTrabajo(id) {
-  return getOne(STORES.TRABAJOS, id)
+export function actualizarTrabajo(id, cambios) {
+  return actualizar('trabajo', repositorio().guardarTrabajo, id, cambios, 'Trabajo no encontrado')
 }
 
-export async function crearTrabajoService(datos) {
-  const trabajo = crearTrabajo(datos)
-  await put(STORES.TRABAJOS, trabajo)
-  return trabajo
-}
-
-export async function actualizarTrabajo(id, cambios) {
-  const actual = await getOne(STORES.TRABAJOS, id)
-  if (!actual) throw new Error('Trabajo no encontrado')
-  const actualizado = { ...actual, ...cambios, id, updatedAt: new Date().toISOString() }
-  await put(STORES.TRABAJOS, actualizado)
-  return actualizado
-}
-
-export async function eliminarTrabajo(id) {
-  // Cascada: elimina funciones del trabajo y actividades de esas funciones.
-  const funciones = await getByIndex(STORES.FUNCIONES, 'trabajoId', id)
-  for (const funcion of funciones) {
-    await eliminarFuncion(funcion.id)
-  }
-  await remove(STORES.TRABAJOS, id)
+export function eliminarTrabajo(id) {
+  return repositorio().eliminarTrabajo(id)
 }
 
 // ---------- Funciones ----------
 
-export async function listarFunciones() {
-  return getAll(STORES.FUNCIONES)
+export function crearFuncionService(datos) {
+  return repositorio().guardarFuncion(crearFuncion(datos))
 }
 
-export async function listarFuncionesPorTrabajo(trabajoId) {
-  const funciones = await getByIndex(STORES.FUNCIONES, 'trabajoId', trabajoId)
-  return funciones.sort((a, b) => a.nombre.localeCompare(b.nombre, 'es'))
+export function actualizarFuncion(id, cambios) {
+  return actualizar('funcion', repositorio().guardarFuncion, id, cambios, 'Función no encontrada')
 }
 
-export async function crearFuncionService(datos) {
-  const funcion = crearFuncion(datos)
-  await put(STORES.FUNCIONES, funcion)
-  return funcion
-}
-
-export async function actualizarFuncion(id, cambios) {
-  const actual = await getOne(STORES.FUNCIONES, id)
-  if (!actual) throw new Error('Función no encontrada')
-  const actualizada = { ...actual, ...cambios, id, updatedAt: new Date().toISOString() }
-  await put(STORES.FUNCIONES, actualizada)
-  return actualizada
-}
-
-export async function eliminarFuncion(id) {
-  const actividades = await getByIndex(STORES.ACTIVIDADES, 'funcionId', id)
-  for (const actividad of actividades) {
-    await remove(STORES.ACTIVIDADES, actividad.id)
-  }
-  await remove(STORES.FUNCIONES, id)
+export function eliminarFuncion(id) {
+  return repositorio().eliminarFuncion(id)
 }
 
 // ---------- Actividades ----------
 
-export async function listarActividades() {
-  return getAll(STORES.ACTIVIDADES)
+export function crearActividadService(datos) {
+  return repositorio().guardarActividad(crearActividad(datos))
 }
 
-export async function listarActividadesPorFuncion(funcionId) {
-  const actividades = await getByIndex(STORES.ACTIVIDADES, 'funcionId', funcionId)
-  return actividades.sort((a, b) => (a.fecha_limite || '').localeCompare(b.fecha_limite || ''))
+export function actualizarActividad(id, cambios) {
+  return actualizar('actividad', repositorio().guardarActividad, id, cambios, 'Actividad no encontrada')
 }
 
-export async function crearActividadService(datos) {
-  const actividad = crearActividad(datos)
-  await put(STORES.ACTIVIDADES, actividad)
-  return actividad
-}
-
-export async function actualizarActividad(id, cambios) {
-  const actual = await getOne(STORES.ACTIVIDADES, id)
-  if (!actual) throw new Error('Actividad no encontrada')
-  const actualizada = { ...actual, ...cambios, id, updatedAt: new Date().toISOString() }
-  await put(STORES.ACTIVIDADES, actualizada)
-  return actualizada
-}
-
-export async function eliminarActividad(id) {
-  await remove(STORES.ACTIVIDADES, id)
-}
-
-// ---------- Carga completa ----------
-
-// Trae las tres colecciones de una sola vez; DataContext arma el árbol.
-export async function cargarTodo() {
-  const [trabajos, funciones, actividades] = await Promise.all([
-    listarTrabajos(),
-    listarFunciones(),
-    listarActividades(),
-  ])
-  return { trabajos, funciones, actividades }
+export function eliminarActividad(id) {
+  return repositorio().eliminarActividad(id)
 }
 
 // ---------- Backup: exportar / importar JSON ----------
@@ -144,18 +124,40 @@ function validarBackup(data) {
   }
 }
 
-// modo: 'reemplazar' borra todo lo existente antes de importar.
-// modo: 'combinar' hace upsert por id sobre lo que ya existe.
+// modo: 'reemplazar' mueve todo lo existente a la papelera antes de importar.
+// modo: 'combinar' agrega o actualiza por id sobre lo que ya existe.
+// También sirve para migrar los datos de la versión anterior (IndexedDB).
+// Devuelve cuántos elementos se omitieron por no tener a qué padre pertenecer.
 export async function importarDatos(data, { modo = 'reemplazar' } = {}) {
   validarBackup(data)
+  const r = repositorio()
 
-  if (modo === 'reemplazar') {
-    await clearAll()
+  if (modo === 'reemplazar') await r.vaciar()
+
+  const actual = await r.cargar()
+  const trabajoIds = new Set(actual.trabajos.map((t) => t.id))
+  const funcionIds = new Set(actual.funciones.map((f) => f.id))
+  let omitidos = 0
+
+  for (const t of data.trabajos) {
+    await r.guardarTrabajo({ ...crearTrabajo(t), ...t })
+    trabajoIds.add(t.id)
+  }
+  for (const f of data.funciones) {
+    if (!trabajoIds.has(f.trabajoId)) {
+      omitidos++
+      continue
+    }
+    await r.guardarFuncion({ ...crearFuncion(f), ...f })
+    funcionIds.add(f.id)
+  }
+  for (const a of data.actividades) {
+    if (!funcionIds.has(a.funcionId)) {
+      omitidos++
+      continue
+    }
+    await r.guardarActividad({ ...crearActividad(a), ...a })
   }
 
-  await bulkPut(STORES.TRABAJOS, data.trabajos)
-  await bulkPut(STORES.FUNCIONES, data.funciones)
-  await bulkPut(STORES.ACTIVIDADES, data.actividades)
-
-  return cargarTodo()
+  return { omitidos }
 }

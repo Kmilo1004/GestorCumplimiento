@@ -47,12 +47,25 @@ export default function BackupView() {
     }
   }
 
+  const handleCambiarBoveda = async () => {
+    try {
+      await data.elegirBoveda()
+    } catch (err) {
+      setEstado({ tipo: 'error', mensaje: err.message || 'No se pudo abrir la carpeta.' })
+    }
+  }
+
   const confirmarImportacion = async () => {
     if (!pendiente) return
     setProcesando(true)
     try {
-      await data.importarDatos(pendiente.json, { modo })
-      setEstado({ tipo: 'exito', mensaje: 'Datos importados correctamente.' })
+      const { omitidos } = await data.importarDatos(pendiente.json, { modo })
+      setEstado({
+        tipo: 'exito',
+        mensaje: omitidos
+          ? `Datos importados. Se omitieron ${omitidos} elementos sin trabajo o función a la que pertenecer.`
+          : 'Datos importados correctamente.',
+      })
       setPendiente(null)
     } catch (err) {
       setEstado({ tipo: 'error', mensaje: err.message || 'No se pudo importar el archivo.' })
@@ -64,10 +77,36 @@ export default function BackupView() {
   return (
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-4 sm:px-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+        <h2 className="text-sm font-semibold text-slate-700">Bóveda</h2>
+        <p className="mt-1 text-sm text-slate-400">
+          Tus datos se guardan como archivos Markdown en la carpeta{' '}
+          <span className="font-medium text-slate-700">{data.boveda.nombre}</span>. Dentro encontrarás{' '}
+          <span className="font-mono text-xs">Trabajos/</span> (una carpeta por trabajo y función) y{' '}
+          <span className="font-mono text-xs">.papelera/</span> (lo que eliminas). Puedes abrirla con Obsidian.
+        </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          <button
+            type="button"
+            onClick={() => data.refrescar({ recargar: true })}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Releer carpeta
+          </button>
+          <button
+            type="button"
+            onClick={handleCambiarBoveda}
+            className="rounded-lg border border-slate-200 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50"
+          >
+            Cambiar de carpeta
+          </button>
+        </div>
+      </div>
+
+      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Exportar datos</h2>
         <p className="mt-1 text-sm text-slate-400">
-          Descarga un archivo JSON con todos tus trabajos, funciones y actividades. Guárdalo como respaldo o
-          para moverlo a otro dispositivo.
+          Descarga un archivo JSON con todos tus trabajos, funciones y actividades. Para respaldar también
+          puedes simplemente copiar la carpeta de la bóveda.
         </p>
         <button
           type="button"
@@ -136,7 +175,7 @@ export default function BackupView() {
       )}
 
       <p className="text-xs text-slate-400">
-        Todo se guarda localmente en este dispositivo (IndexedDB). Nada se envía a internet en esta fase.
+        Todo se guarda localmente en tu equipo. Nada se envía a internet.
       </p>
 
       <Modal
@@ -177,7 +216,7 @@ export default function BackupView() {
             />
             <span>
               <span className="block font-medium text-slate-700">Reemplazar todo</span>
-              <span className="block text-xs text-slate-400">Borra los datos actuales y los sustituye por los del archivo.</span>
+              <span className="block text-xs text-slate-400">Mueve los datos actuales a la papelera de la bóveda y los sustituye por los del archivo.</span>
             </span>
           </label>
           <label className="flex items-start gap-2 rounded-lg border border-slate-200 p-3 text-sm">
