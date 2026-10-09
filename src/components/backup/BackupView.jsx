@@ -1,6 +1,8 @@
 import { useRef, useState } from 'react'
 import { useData } from '../../context/DataContext'
+import { useUI } from '../../context/UIContext'
 import Modal from '../ui/Modal'
+import Icono from '../ui/Icono'
 import { descargarBlob } from '../../utils/archivos'
 
 function descargarJSON(objeto, nombreArchivo) {
@@ -9,6 +11,7 @@ function descargarJSON(objeto, nombreArchivo) {
 
 export default function BackupView() {
   const data = useData()
+  const { abrirConfiguracion } = useUI()
   const fileInputRef = useRef(null)
   const [pendiente, setPendiente] = useState(null) // { json, nombreArchivo }
   const [modo, setModo] = useState('reemplazar')
@@ -71,9 +74,23 @@ export default function BackupView() {
     <div className="mx-auto max-w-2xl space-y-4 px-4 py-4 sm:px-6">
       <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
         <h2 className="text-sm font-semibold text-slate-700">Bóveda</h2>
-        <p className="mt-1 text-sm text-slate-400">
-          Tus datos se guardan como archivos Markdown en la carpeta{' '}
-          <span className="font-medium text-slate-700">{data.boveda.nombre}</span>. Dentro encontrarás{' '}
+        <div className="mt-2 flex items-center gap-2 rounded-lg bg-slate-50 py-1 pl-3 pr-1">
+          <Icono nombre="carpeta" className="h-4 w-4 shrink-0 text-slate-400" />
+          <span className="min-w-0 flex-1 truncate text-sm font-medium text-slate-700" title="Carpeta de la bóveda">
+            {data.boveda.nombre}
+          </span>
+          <button
+            type="button"
+            onClick={abrirConfiguracion}
+            aria-label="Configuración"
+            title="Configuración"
+            className="shrink-0 rounded-lg p-2.5 text-slate-500 hover:bg-slate-200 hover:text-slate-800"
+          >
+            <Icono nombre="engranaje" className="h-5 w-5" />
+          </button>
+        </div>
+        <p className="mt-2 text-sm text-slate-400">
+          Tus datos se guardan como archivos Markdown en esta carpeta. Dentro encontrarás{' '}
           <span className="font-mono text-xs">Trabajos/</span> (una carpeta por trabajo y función) y{' '}
           <span className="font-mono text-xs">.papelera/</span> (lo que eliminas). Puedes abrirla con Obsidian.
         </p>

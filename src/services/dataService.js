@@ -124,6 +124,7 @@ async function crearSiguientePeriodo(actividad) {
         prioridad: actividad.prioridad,
         tags: actividad.tags,
         recurrencia: actividad.recurrencia,
+        camposPersonalizados: actividad.camposPersonalizados,
         fecha_limite: fecha,
       }),
     ),
@@ -209,6 +210,23 @@ export function marcarCompromisosPasados(ahora, opciones) {
 // Cambio atómico: transformar({ compromisos, notas }) -> { compromisos, notas }.
 export function modificarNotaDiaria(fecha, transformar) {
   return repositorio().modificarNotaDelDia(fecha, transformar)
+}
+
+// ---------- Configuración de la bóveda ----------
+
+// [{ clave, etiqueta, tipo, opciones, aplicaA }] definidos en Configuración.
+export function leerCamposPersonalizados() {
+  return repositorio().leerCampos()
+}
+
+// Reemplaza la lista completa de definiciones. Devuelve la lista normalizada.
+export function guardarCamposPersonalizados(campos) {
+  return repositorio().guardarCampos(campos)
+}
+
+// { formato, creadoEn } de la bóveda abierta.
+export function leerInfoBoveda() {
+  return repositorio().leerInfoBoveda()
 }
 
 // ---------- Backup: exportar / importar JSON ----------

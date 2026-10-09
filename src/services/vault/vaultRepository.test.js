@@ -162,3 +162,97 @@ describe('evidencias en la bóveda', () => {
     expect(Object.keys(fs._snapshot()).filter((p) => p.startsWith('Trabajos/') && p.includes('Evidencias'))).toEqual([])
   })
 })
+
+describe('vaultRepository: campos personalizados', () => {
+  let fs
+  let repo
+  const RADICADO = { clave: 'radicado', etiqueta: 'Radicado', tipo: 'texto', aplicaA: ['actividad'] }
+
+  beforeEach(() => {
+    fs = createMemoryFs()
+    repo = createVaultRepository(fs, { ahora: () => fecha })
+  })
+
+  it('sin campos.json no hay campos y la bóveda abre igual', async () => {
+    await sembrar(repo)
+    expect(await repo.leerCampos()).toEqual([])
+  })
+
+  it('guarda las definiciones en .cumplimiento/campos.json y las vuelve a leer', async () => {
+    await repo.guardarCampos([RADICADO])
+    const guardado = JSON.parse(fs._snapshot()['.cumplimiento/campos.json'])
+    expect(guardado.campos).toEqual([{ ...RADICADO, opciones: [] }])
+    expect(await createVaultRepository(fs).leerCampos()).toEqual([{ ...RADICADO, opciones: [] }])
+  })
+
+  it('descarta definiciones con clave reservada o repetida', async () => {
+    const campos = await repo.guardarCampos([
+      RADICADO,
+      { etiqueta: 'Estado', tipo: 'texto', aplicaA: ['actividad'] },
+      { ...RADICADO, etiqueta: 'Otro radicado' },
+    ])
+    expect(campos.map((c) => c.clave)).toEqual(['radicado'])
+  })
+
+  it('un campos.json dañado no impide abrir la bóveda', async () => {
+    await fs.writeFile('.cumplimiento/campos.json', '{ esto no es json')
+    await sembrar(repo)
+    expect(await repo.leerCampos()).toEqual([])
+    expect((await repo.cargar({ recargar: true })).actividades).toHaveLength(1)
+  })
+
+  it('el valor se escribe en el frontmatter y se lee de vuelta', async () => {
+    await repo.guardarCampos([RADICADO])
+    const { a } = await sembrar(repo)
+    await repo.guardarActividad({ ...a, camposPersonalizados: { radicado: 'RAD-2026-001' } })
+    const { frontmatter } = separarFrontmatter(fs._snapshot()['Trabajos/Secretaría/Gestión documental/Responder PQRS.md'])
+    expect(frontmatter.radicado).toBe('RAD-2026-001')
+    const datos = await createVaultRepository(fs).cargar()
+    expect(datos.actividades[0].camposPersonalizados).toEqual({ radicado: 'RAD-2026-001' })
+  })
+
+  it('vaciar el campo quita la clave del archivo', async () => {
+    await repo.guardarCampos([RADICADO])
+    const { a } = await sembrar(repo)
+    const conValor = await repo.guardarActividad({ ...a, camposPersonalizados: { radicado: 'RAD-1' } })
+    await repo.guardarActividad({ ...conValor, camposPersonalizados: { radicado: '' } })
+    const { frontmatter } = separarFrontmatter(fs._snapshot()['Trabajos/Secretaría/Gestión documental/Responder PQRS.md'])
+    expect(frontmatter).not.toHaveProperty('radicado')
+  })
+
+  it('al definir un campo se leen los valores que ya estaban en los archivos', async () => {
+    await sembrar(repo)
+    const ruta = 'Trabajos/Secretaría/Gestión documental/Responder PQRS.md'
+    const texto = fs._snapshot()[ruta]
+    await fs.writeFile(ruta, texto.replace('tipo: actividad', 'tipo: actividad\nradicado: RAD-9'))
+    await repo.cargar({ recargar: true })
+    expect((await repo.cargar()).actividades[0].camposPersonalizados).toEqual({})
+    await repo.guardarCampos([RADICADO])
+    expect((await repo.cargar()).actividades[0].camposPersonalizados).toEqual({ radicado: 'RAD-9' })
+  })
+
+  it('una clave sin definición sigue en el archivo pero no se muestra', async () => {
+    const { a } = await sembrar(repo)
+    const ruta = 'Trabajos/Secretaría/Gestión documental/Responder PQRS.md'
+    await fs.writeFile(ruta, fs._snapshot()[ruta].replace('tipo: actividad', 'tipo: actividad\nproyecto: X'))
+    const datos = await repo.cargar({ recargar: true })
+    expect(datos.actividades[0].camposPersonalizados).toEqual({})
+    await repo.guardarActividad({ ...datos.actividades[0], notas: 'otra' })
+    expect(separarFrontmatter(fs._snapshot()[ruta]).frontmatter.proyecto).toBe('X')
+    expect(a.id).toBe(datos.actividades[0].id)
+  })
+
+  it('los campos de trabajo y función se guardan en _trabajo.md y _funcion.md', async () => {
+    await repo.guardarCampos([{ clave: 'codigo', etiqueta: 'Código', tipo: 'texto', aplicaA: ['trabajo', 'funcion'] }])
+    const { t, f } = await sembrar(repo)
+    await repo.guardarTrabajo({ ...t, camposPersonalizados: { codigo: 'T-1' } })
+    await repo.guardarFuncion({ ...f, camposPersonalizados: { codigo: 'F-1' } })
+    const datos = await createVaultRepository(fs).cargar()
+    expect(datos.trabajos[0].camposPersonalizados).toEqual({ codigo: 'T-1' })
+    expect(datos.funciones[0].camposPersonalizados).toEqual({ codigo: 'F-1' })
+  })
+
+  it('lee el formato y la fecha de creación de la bóveda', async () => {
+    expect(await repo.leerInfoBoveda()).toEqual({ formato: 1, creadoEn: fecha.toISOString() })
+  })
+})

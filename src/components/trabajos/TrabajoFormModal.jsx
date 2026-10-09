@@ -1,8 +1,9 @@
 import { useEffect, useState } from 'react'
 import Modal from '../ui/Modal'
 import { Field, TextInput, TextArea } from '../ui/Field'
+import CamposPersonalizadosInputs from '../configuracion/CamposPersonalizadosInputs'
 
-const VACIO = { nombre: '', descripcion: '' }
+const VACIO = { nombre: '', descripcion: '', camposPersonalizados: {} }
 
 export default function TrabajoFormModal({ open, trabajo, onClose, onSubmit }) {
   const [form, setForm] = useState(VACIO)
@@ -11,7 +12,15 @@ export default function TrabajoFormModal({ open, trabajo, onClose, onSubmit }) {
 
   useEffect(() => {
     if (open) {
-      setForm(trabajo ? { nombre: trabajo.nombre, descripcion: trabajo.descripcion } : VACIO)
+      setForm(
+        trabajo
+          ? {
+              nombre: trabajo.nombre,
+              descripcion: trabajo.descripcion,
+              camposPersonalizados: trabajo.camposPersonalizados ?? {},
+            }
+          : VACIO,
+      )
     }
   }, [open, trabajo])
 
@@ -47,6 +56,11 @@ export default function TrabajoFormModal({ open, trabajo, onClose, onSubmit }) {
             onChange={(e) => setForm((f) => ({ ...f, descripcion: e.target.value }))}
           />
         </Field>
+        <CamposPersonalizadosInputs
+          entidad="trabajo"
+          valores={form.camposPersonalizados}
+          onChange={(camposPersonalizados) => setForm((f) => ({ ...f, camposPersonalizados }))}
+        />
         <div className="mt-2 flex justify-end gap-2">
           <button type="button" onClick={onClose} className="rounded-lg px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100">
             Cancelar

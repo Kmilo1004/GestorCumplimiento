@@ -22,7 +22,7 @@
 // funciona igual con la File System Access API, en memoria (tests) o con
 // Tauri en el futuro.
 
-import { generarId } from '../../models'
+import { generarId, normalizarDefinicionesCampos } from '../../models'
 import { joinPath, nombreSeguro } from '../fs/paths'
 import { moveEntry, mismaRuta, rutaDisponible } from '../fs/fsUtils'
 import {
@@ -30,6 +30,7 @@ import {
   escribirActividad,
   escribirContenedor,
   leerActividad,
+  leerCamposPersonalizados,
   leerContenedor,
 } from './markdown'
 import { escribirNotaDiaria, leerNotaDiaria } from './notaDiaria'
@@ -39,6 +40,7 @@ import { aISO } from '../../utils/fechas'
 export const CARPETA_TRABAJOS = 'Trabajos'
 export const CARPETA_PAPELERA = '.papelera'
 export const ARCHIVO_CONFIG = '.cumplimiento/config.json'
+export const ARCHIVO_CAMPOS = '.cumplimiento/campos.json'
 export const ARCHIVO_TRABAJO = '_trabajo.md'
 export const ARCHIVO_FUNCION = '_funcion.md'
 export const CARPETA_EVIDENCIAS = 'Evidencias'
@@ -68,12 +70,20 @@ function partirNombreArchivo(nombre) {
 
 const esArchivoVisible = ({ name, kind }) => kind === 'file' && !name.startsWith('.')
 
+// En memoria se guarda lo mismo que se leerá del disco: sin valores vacíos.
+function sinCamposVacios(campos) {
+  return Object.fromEntries(
+    Object.entries(campos ?? {}).filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== ''),
+  )
+}
+
 export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   // Índice en memoria. Para cada entidad se guarda la entidad tal como la ve
   // la UI y el nombre real en disco (`carpeta` o `archivo`).
   let trabajos = new Map() // id -> { entidad, carpeta }
   let funciones = new Map() // id -> { entidad, carpeta }
   let actividades = new Map() // id -> { entidad, archivo }
+  let campos = [] // definiciones de campos personalizados (campos.json)
   let cargado = false
 
   // Todas las escrituras pasan por esta cola para que dos operaciones
@@ -121,10 +131,23 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     }
   }
 
+  // campos.json dañado o editado a mano no debe impedir abrir la bóveda.
+  async function leerArchivoCampos() {
+    const textoCampos = await fs.readFile(ARCHIVO_CAMPOS)
+    if (textoCampos === null) return []
+    try {
+      return normalizarDefinicionesCampos(JSON.parse(textoCampos)?.campos)
+    } catch {
+      return []
+    }
+  }
+
   // Interpreta un archivo de entidad y, si le falta el id o lo tiene
   // repetido, le asigna uno nuevo reescribiendo solo su frontmatter.
-  async function conId(ruta, original, lector, idsUsados, frontmatterBase) {
-    const { datos } = lector(original ?? '')
+  // `tipoEntidad` decide qué campos personalizados se leen del frontmatter.
+  async function conId(ruta, original, lector, idsUsados, tipoEntidad, frontmatterBase) {
+    const { datos, frontmatter } = lector(original ?? '')
+    datos.camposPersonalizados = leerCamposPersonalizados(frontmatter, campos, tipoEntidad)
     const momento = ahora().toISOString()
     datos.createdAt = datos.createdAt || momento
     datos.updatedAt = datos.updatedAt || datos.createdAt
@@ -168,6 +191,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
 
   async function escanear() {
     await inicializar()
+    campos = await leerArchivoCampos()
     const nuevosTrabajos = new Map()
     const nuevasFunciones = new Map()
     const nuevasActividades = new Map()
@@ -182,7 +206,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
 
     for (const [i, dirTrabajo] of dirsTrabajo.entries()) {
       const rutaT = rutasT[i]
-      const datosT = await conId(joinPath(rutaT, ARCHIVO_TRABAJO), textosT[i], leerContenedor, ids, () => ({
+      const datosT = await conId(joinPath(rutaT, ARCHIVO_TRABAJO), textosT[i], leerContenedor, ids, 'trabajo', () => ({
         tipo: 'trabajo',
       }))
       const trabajo = { ...datosT, nombre: dirTrabajo.name }
@@ -201,7 +225,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
 
       for (const [j, dirFuncion] of dirsFuncion.entries()) {
         const rutaF = rutasF[j]
-        const datosF = await conId(joinPath(rutaF, ARCHIVO_FUNCION), textosF[j], leerContenedor, ids, () => ({
+        const datosF = await conId(joinPath(rutaF, ARCHIVO_FUNCION), textosF[j], leerContenedor, ids, 'funcion', () => ({
           tipo: 'funcion',
         }))
         const funcion = { ...datosF, trabajoId: trabajo.id, nombre: dirFuncion.name }
@@ -210,7 +234,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         const [notas, evidencias] = notasF[j]
         const textosA = await leerTodos(notas.map(({ name }) => joinPath(rutaF, name)))
         for (const [k, nota] of notas.entries()) {
-          const datosA = await conId(joinPath(rutaF, nota.name), textosA[k], leerActividad, ids, (d) => ({
+          const datosA = await conId(joinPath(rutaF, nota.name), textosA[k], leerActividad, ids, 'actividad', (d) => ({
             tipo: 'actividad',
             estado: d.estado,
           }))
@@ -284,9 +308,11 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         rutaActual: previo ? rutaTrabajo(trabajo.id) : null,
         nombreActual: previo?.entidad.nombre,
       })
-      const entidad = { ...trabajo, nombre: carpeta }
+      const entidad = { ...trabajo, nombre: carpeta, camposPersonalizados: sinCamposVacios(trabajo.camposPersonalizados) }
       const ruta = joinPath(CARPETA_TRABAJOS, carpeta, ARCHIVO_TRABAJO)
-      await fs.writeFile(ruta, escribirContenedor('trabajo', entidad, (await fs.readFile(ruta)) ?? ''))
+      // Al archivo van también los vacíos: así se borra la clave del frontmatter.
+      const aEscribir = { ...entidad, camposPersonalizados: trabajo.camposPersonalizados }
+      await fs.writeFile(ruta, escribirContenedor('trabajo', aEscribir, (await fs.readFile(ruta)) ?? ''))
       trabajos.set(entidad.id, { entidad, carpeta })
       return { ...entidad }
     })
@@ -319,9 +345,10 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         rutaActual: previo ? rutaFuncion(funcion.id) : null,
         nombreActual: previo?.entidad.nombre,
       })
-      const entidad = { ...funcion, nombre: carpeta }
+      const entidad = { ...funcion, nombre: carpeta, camposPersonalizados: sinCamposVacios(funcion.camposPersonalizados) }
       const ruta = joinPath(carpetaPadre, carpeta, ARCHIVO_FUNCION)
-      await fs.writeFile(ruta, escribirContenedor('funcion', entidad, (await fs.readFile(ruta)) ?? ''))
+      const aEscribir = { ...entidad, camposPersonalizados: funcion.camposPersonalizados }
+      await fs.writeFile(ruta, escribirContenedor('funcion', aEscribir, (await fs.readFile(ruta)) ?? ''))
       funciones.set(entidad.id, { entidad, carpeta })
       return { ...entidad }
     })
@@ -352,9 +379,15 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
         nombreActual: previo?.entidad.nombre,
       })
       // Las evidencias las decide la carpeta, no quien llama.
-      const entidad = { ...actividad, nombre: sinExtension(archivo), evidencias: previo?.entidad.evidencias ?? [] }
+      const entidad = {
+        ...actividad,
+        nombre: sinExtension(archivo),
+        evidencias: previo?.entidad.evidencias ?? [],
+        camposPersonalizados: sinCamposVacios(actividad.camposPersonalizados),
+      }
       const ruta = joinPath(carpetaPadre, archivo)
-      await fs.writeFile(ruta, escribirActividad(entidad, (await fs.readFile(ruta)) ?? ''))
+      const aEscribir = { ...entidad, camposPersonalizados: actividad.camposPersonalizados }
+      await fs.writeFile(ruta, escribirActividad(aEscribir, (await fs.readFile(ruta)) ?? ''))
       actividades.set(entidad.id, { entidad, archivo })
       // Renombrada o movida de función: su carpeta de evidencias la acompaña.
       const evidenciasDespues = rutaEvidencias(entidad.id)
@@ -438,6 +471,39 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
       const mapa = { trabajo: trabajos, funcion: funciones, actividad: actividades }[tipo]
       const item = mapa.get(id)
       return item ? { ...item.entidad } : undefined
+    })
+  }
+
+  // ---------- Configuración de la bóveda ----------
+
+  function leerCampos() {
+    return enCola(async () => {
+      await asegurarCargado()
+      return campos.map((c) => ({ ...c, aplicaA: [...c.aplicaA], opciones: [...c.opciones] }))
+    })
+  }
+
+  // Guarda las definiciones y vuelve a leer la bóveda: un campo recién
+  // definido puede tener ya valores en los archivos (p. ej. puestos en Obsidian).
+  function guardarCampos(lista) {
+    return enCola(async () => {
+      const normalizados = normalizarDefinicionesCampos(lista)
+      await fs.writeFile(ARCHIVO_CAMPOS, `${JSON.stringify({ version: 1, campos: normalizados }, null, 2)}\n`)
+      await escanear()
+      return normalizados
+    })
+  }
+
+  // Metadatos de .cumplimiento/config.json (formato y fecha de creación).
+  function leerInfoBoveda() {
+    return enCola(async () => {
+      await asegurarCargado()
+      try {
+        const config = JSON.parse((await fs.readFile(ARCHIVO_CONFIG)) ?? '{}')
+        return { formato: config.formato ?? null, creadoEn: config.creadoEn ?? null }
+      } catch {
+        return { formato: null, creadoEn: null }
+      }
     })
   }
 
@@ -551,6 +617,9 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   }
 
   return {
+    leerCampos,
+    guardarCampos,
+    leerInfoBoveda,
     marcarCompromisosPasados,
     leerNotaDelDia,
     guardarNotaDelDia,

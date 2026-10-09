@@ -3,6 +3,7 @@ import {
   actualizarFrontmatter,
   escribirActividad,
   leerActividad,
+  leerCamposPersonalizados,
   leerContenedor,
   separarFrontmatter,
 } from './markdown'
@@ -116,5 +117,29 @@ describe('campos de la Fase 2', () => {
   it('valores desconocidos vuelven a los valores por defecto', () => {
     const { datos } = leerActividad('---\nprioridad: urgentísima\nrecurrencia: diaria\n---\n')
     expect(datos).toMatchObject({ prioridad: 'media', recurrencia: '', serie: '' })
+  })
+})
+
+describe('campos personalizados en el frontmatter', () => {
+  const definiciones = [
+    { clave: 'radicado', aplicaA: ['actividad'] },
+    { clave: 'vence', aplicaA: ['actividad'] },
+    { clave: 'codigo', aplicaA: ['trabajo'] },
+  ]
+
+  it('solo toma los campos definidos para ese tipo de entidad', () => {
+    const frontmatter = { radicado: 'RAD-1', codigo: 'T-1', otra: 'x', vence: new Date('2026-10-20T00:00:00Z') }
+    expect(leerCamposPersonalizados(frontmatter, definiciones, 'actividad')).toEqual({
+      radicado: 'RAD-1',
+      vence: '2026-10-20',
+    })
+    expect(leerCamposPersonalizados(frontmatter, definiciones, 'trabajo')).toEqual({ codigo: 'T-1' })
+  })
+
+  it('nunca sobrescribe las claves reservadas de la app', () => {
+    const texto = escribirActividad({ ...actividad, camposPersonalizados: { estado: 'hackeado', radicado: 'R' } })
+    const { frontmatter } = separarFrontmatter(texto)
+    expect(frontmatter.estado).toBe(actividad.estado)
+    expect(frontmatter.radicado).toBe('R')
   })
 })

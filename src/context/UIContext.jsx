@@ -2,16 +2,19 @@ import { createContext, useCallback, useContext, useMemo, useState } from 'react
 import { useData } from './DataContext'
 import ActividadDetalle from '../components/actividades/ActividadDetalle'
 import ActividadFormModal from '../components/trabajos/ActividadFormModal'
+import ConfiguracionModal from '../components/configuracion/ConfiguracionModal'
 
-// Estado de interfaz compartido: el panel de detalle de una actividad y el
-// formulario de actividad se pueden abrir desde cualquier pantalla.
+// Estado de interfaz compartido: el panel de detalle de una actividad, el
+// formulario de actividad y la Configuración se abren desde cualquier pantalla.
 const UIContext = createContext(null)
 
 export function UIProvider({ children, onIrATrabajos }) {
   const { arbol, crearActividad, actualizarActividad } = useData()
   const [detalleId, setDetalleId] = useState(null)
   const [formulario, setFormulario] = useState({ open: false, actividad: null, funcionId: '', valores: null })
+  const [configuracionAbierta, setConfiguracionAbierta] = useState(false)
 
+  const abrirConfiguracion = useCallback(() => setConfiguracionAbierta(true), [])
   const abrirDetalle = useCallback((id) => setDetalleId(id), [])
   const cerrarDetalle = useCallback(() => setDetalleId(null), [])
 
@@ -38,8 +41,8 @@ export function UIProvider({ children, onIrATrabajos }) {
     formulario.actividad ? actualizarActividad(formulario.actividad.id, form) : crearActividad(form)
 
   const value = useMemo(
-    () => ({ abrirDetalle, nuevaActividad, editarActividad }),
-    [abrirDetalle, nuevaActividad, editarActividad],
+    () => ({ abrirDetalle, nuevaActividad, editarActividad, abrirConfiguracion }),
+    [abrirDetalle, nuevaActividad, editarActividad, abrirConfiguracion],
   )
 
   return (
@@ -57,6 +60,7 @@ export function UIProvider({ children, onIrATrabajos }) {
         onSubmit={guardar}
         onIrATrabajos={onIrATrabajos}
       />
+      <ConfiguracionModal open={configuracionAbierta} onClose={() => setConfiguracionAbierta(false)} />
     </UIContext.Provider>
   )
 }

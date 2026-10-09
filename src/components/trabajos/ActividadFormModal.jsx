@@ -4,6 +4,7 @@ import Icono from '../ui/Icono'
 import { Field, TextInput, TextArea, Select } from '../ui/Field'
 import TagInput from '../ui/TagInput'
 import EvidenciasField from '../actividades/EvidenciasField'
+import CamposPersonalizadosInputs from '../configuracion/CamposPersonalizadosInputs'
 import { useData } from '../../context/DataContext'
 import {
   ESTADOS,
@@ -28,6 +29,7 @@ const VACIO = {
   prioridad: PRIORIDADES.MEDIA,
   tags: [],
   recurrencia: '',
+  camposPersonalizados: {},
 }
 
 // Formulario de actividad. Al crear muestra solo lo esencial (nombre,
@@ -42,7 +44,7 @@ export default function ActividadFormModal({
   onSubmit,
   onIrATrabajos,
 }) {
-  const { arbol, etiquetas, leerEvidencia, eliminarEvidencia } = useData()
+  const { arbol, etiquetas, leerEvidencia, eliminarEvidencia, camposPersonalizados } = useData()
   const [form, setForm] = useState(VACIO)
   const [masOpciones, setMasOpciones] = useState(false)
   const [archivos, setArchivos] = useState([]) // File[] por adjuntar al guardar
@@ -67,6 +69,7 @@ export default function ActividadFormModal({
             prioridad: actividad.prioridad || PRIORIDADES.MEDIA,
             tags: actividad.tags ?? [],
             recurrencia: actividad.recurrencia || '',
+            camposPersonalizados: actividad.camposPersonalizados ?? {},
           }
         : { ...VACIO, ...valoresIniciales, funcionId: funcionId || '' },
     )
@@ -89,9 +92,11 @@ export default function ActividadFormModal({
     form.recurrencia && form.fecha_limite && form.nombre.trim()
       ? nombreDePeriodo(form.nombre.trim(), form.fecha_limite, form.recurrencia)
       : ''
-  const extrasUsados = [form.recurrencia, form.tags.length, form.descripcion, form.notas, archivos.length].filter(
-    Boolean,
-  ).length
+  const hayCamposPersonalizados = camposPersonalizados.some((c) => c.aplicaA.includes('actividad'))
+  const camposConValor = Object.values(form.camposPersonalizados).filter((v) => String(v ?? '').trim()).length
+  const extrasUsados =
+    [form.recurrencia, form.tags.length, form.descripcion, form.notas, archivos.length].filter(Boolean).length +
+    camposConValor
 
   const handleSubmit = async (e) => {
     e.preventDefault()
@@ -214,12 +219,19 @@ export default function ActividadFormModal({
             <span className="rounded-full bg-brand-50 px-2 py-0.5 text-xs text-brand-700">{extrasUsados}</span>
           )}
           {!masOpciones && (
-            <span className="min-w-0 truncate font-normal text-slate-400">estado, repetición, etiquetas, notas, evidencias</span>
+            <span className="min-w-0 truncate font-normal text-slate-400">
+              {hayCamposPersonalizados ? 'tus campos, ' : ''}estado, repetición, etiquetas, notas, evidencias
+            </span>
           )}
         </button>
 
         {masOpciones && (
           <div className="mb-1 border-l-2 border-slate-100 pl-3">
+            <CamposPersonalizadosInputs
+              entidad="actividad"
+              valores={form.camposPersonalizados}
+              onChange={(campos) => set({ camposPersonalizados: campos })}
+            />
             <div className="grid grid-cols-2 gap-3">
               <Field label="Estado">
                 <Select value={form.estado} onChange={(e) => set({ estado: e.target.value })}>

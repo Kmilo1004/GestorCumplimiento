@@ -72,6 +72,108 @@ export const RECURRENCIA_LABELS = {
 
 export const RECURRENCIA_LIST = Object.values(RECURRENCIAS)
 
+// ---------- Campos personalizados ----------
+// El usuario define campos extra (en Configuración) que se guardan en el
+// frontmatter de cada archivo: `radicado: RAD-2026-001`. Las definiciones
+// viven en la bóveda, en .cumplimiento/campos.json.
+
+export const TIPOS_CAMPO = {
+  TEXTO: 'texto',
+  NUMERO: 'numero',
+  FECHA: 'fecha',
+  LISTA: 'lista',
+}
+
+export const TIPO_CAMPO_LABELS = {
+  [TIPOS_CAMPO.TEXTO]: 'Texto',
+  [TIPOS_CAMPO.NUMERO]: 'Número',
+  [TIPOS_CAMPO.FECHA]: 'Fecha',
+  [TIPOS_CAMPO.LISTA]: 'Lista de opciones',
+}
+
+export const TIPO_CAMPO_LIST = Object.values(TIPOS_CAMPO)
+
+export const ENTIDADES = ['trabajo', 'funcion', 'actividad']
+
+export const ENTIDAD_LABELS = {
+  trabajo: 'Trabajos',
+  funcion: 'Funciones',
+  actividad: 'Actividades',
+}
+
+// Claves de frontmatter que ya usa la app (o Obsidian). Un campo
+// personalizado con una de estas claves se perdería en cada guardado.
+export const CLAVES_RESERVADAS = [
+  'id',
+  'tipo',
+  'estado',
+  'prioridad',
+  'fecha_limite',
+  'tags',
+  'tag',
+  'recurrencia',
+  'serie',
+  'createdat',
+  'updatedat',
+  'aliases',
+  'alias',
+  'cssclasses',
+  'nombre',
+  'descripcion',
+  'notas',
+]
+
+export function esClaveReservada(clave) {
+  return CLAVES_RESERVADAS.includes(String(clave ?? '').toLowerCase())
+}
+
+// "Código de contrato" -> "codigo_de_contrato": sirve como clave de YAML.
+export function claveDeCampo(etiqueta) {
+  return String(etiqueta ?? '')
+    .normalize('NFD')
+    .replace(/[̀-ͯ]/g, '')
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_+|_+$/g, '')
+}
+
+// Deja una definición con forma válida (tolera campos.json editado a mano).
+// Devuelve null si no se puede usar.
+export function normalizarDefinicionCampo(def) {
+  if (!def || typeof def !== 'object') return null
+  const clave = claveDeCampo(def.clave || def.etiqueta)
+  if (!clave || esClaveReservada(clave)) return null
+  const tipo = TIPO_CAMPO_LIST.includes(def.tipo) ? def.tipo : TIPOS_CAMPO.TEXTO
+  const aplicaA = (Array.isArray(def.aplicaA) ? def.aplicaA : []).filter((e) => ENTIDADES.includes(e))
+  const opciones = Array.isArray(def.opciones)
+    ? [...new Set(def.opciones.map((o) => String(o ?? '').trim()).filter(Boolean))]
+    : []
+  return {
+    clave,
+    etiqueta: String(def.etiqueta ?? '').trim() || clave,
+    tipo,
+    aplicaA: aplicaA.length ? aplicaA : ['actividad'],
+    opciones: tipo === TIPOS_CAMPO.LISTA ? opciones : [],
+  }
+}
+
+// Normaliza la lista completa y descarta claves repetidas (gana la primera).
+export function normalizarDefinicionesCampos(lista) {
+  const vistas = new Set()
+  const resultado = []
+  for (const def of Array.isArray(lista) ? lista : []) {
+    const normal = normalizarDefinicionCampo(def)
+    if (!normal || vistas.has(normal.clave)) continue
+    vistas.add(normal.clave)
+    resultado.push(normal)
+  }
+  return resultado
+}
+
+function copiarCampos(valores) {
+  return valores && typeof valores === 'object' && !Array.isArray(valores) ? { ...valores } : {}
+}
+
 // Etiquetas al estilo Obsidian: sin '#', sin espacios ni comas. Se respetan
 // las mayúsculas que escribió el usuario, pero "Informe" e "informe" cuentan
 // como la misma (Obsidian tampoco las distingue).
@@ -107,24 +209,26 @@ export function generarId() {
   return `id-${Date.now()}-${Math.random().toString(16).slice(2)}`
 }
 
-export function crearTrabajo({ nombre = '', descripcion = '' } = {}) {
+export function crearTrabajo({ nombre = '', descripcion = '', camposPersonalizados = {} } = {}) {
   const ahora = new Date().toISOString()
   return {
     id: generarId(),
     nombre: nombre.trim(),
     descripcion: descripcion.trim(),
+    camposPersonalizados: copiarCampos(camposPersonalizados),
     createdAt: ahora,
     updatedAt: ahora,
   }
 }
 
-export function crearFuncion({ trabajoId, nombre = '', descripcion = '' } = {}) {
+export function crearFuncion({ trabajoId, nombre = '', descripcion = '', camposPersonalizados = {} } = {}) {
   const ahora = new Date().toISOString()
   return {
     id: generarId(),
     trabajoId,
     nombre: nombre.trim(),
     descripcion: descripcion.trim(),
+    camposPersonalizados: copiarCampos(camposPersonalizados),
     createdAt: ahora,
     updatedAt: ahora,
   }
@@ -141,6 +245,7 @@ export function crearActividad({
   tags = [],
   recurrencia = '',
   serie = '',
+  camposPersonalizados = {},
 } = {}) {
   const ahora = new Date().toISOString()
   return {
@@ -160,6 +265,8 @@ export function crearActividad({
     // Nombres de los archivos en <Función>/Evidencias/<Actividad>/. Se leen de
     // la carpeta; no se guardan en el frontmatter.
     evidencias: [],
+    // { clave: valor } de los campos definidos en Configuración.
+    camposPersonalizados: copiarCampos(camposPersonalizados),
     createdAt: ahora,
     updatedAt: ahora,
   }

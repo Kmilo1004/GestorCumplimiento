@@ -34,6 +34,7 @@ export function DataProvider({ children }) {
   const [error, setError] = useState(null)
   const [boveda, setBoveda] = useState({ estado: 'iniciando', nombre: '' })
   const [migracionPendiente, setMigracionPendiente] = useState(null)
+  const [camposPersonalizados, setCamposPersonalizados] = useState([])
   // Sube cada vez que la agenda puede haber cambiado (guardado o relectura de
   // la carpeta), para que las vistas del calendario vuelvan a leerla.
   const [versionAgenda, setVersionAgenda] = useState(0)
@@ -43,9 +44,11 @@ export function DataProvider({ children }) {
     try {
       setError(null)
       const datos = await dataService.cargarTodo({ recargar })
+      const campos = await dataService.leerCamposPersonalizados()
       setTrabajos(datos.trabajos)
       setFunciones(datos.funciones)
       setActividades(datos.actividades)
+      setCamposPersonalizados(campos)
       if (recargar) setVersionAgenda((v) => v + 1)
     } catch (err) {
       console.error(err)
@@ -293,6 +296,18 @@ export function DataProvider({ children }) {
     return nota
   }, [])
 
+  // ---- Configuración ----
+
+  const guardarCamposPersonalizados = useCallback(
+    async (campos) => {
+      await dataService.guardarCamposPersonalizados(campos)
+      await refrescar()
+    },
+    [refrescar],
+  )
+
+  const leerInfoBoveda = useCallback(() => dataService.leerInfoBoveda(), [])
+
   const exportarDatos = useCallback(() => dataService.exportarDatos(), [])
 
   const importarDatos = useCallback(
@@ -337,6 +352,9 @@ export function DataProvider({ children }) {
     leerNotaDiaria,
     guardarNotaDiaria,
     modificarNotaDiaria,
+    camposPersonalizados,
+    guardarCamposPersonalizados,
+    leerInfoBoveda,
     exportarDatos,
     importarDatos,
   }

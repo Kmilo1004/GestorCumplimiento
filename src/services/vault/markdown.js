@@ -24,6 +24,7 @@ import {
   PRIORIDAD_LIST,
   PRIORIDADES,
   RECURRENCIA_LIST,
+  esClaveReservada,
   normalizarTags,
 } from '../../models'
 
@@ -76,6 +77,41 @@ function fecha(valor) {
   return /^\d{4}-\d{2}-\d{2}$/.test(t) ? t : ''
 }
 
+// ---------- Campos personalizados ----------
+
+function valorDeCampo(valor) {
+  if (valor === null || valor === undefined) return ''
+  if (valor instanceof Date) return valor.toISOString().slice(0, 10)
+  if (Array.isArray(valor)) return valor.map(texto).join(', ')
+  if (typeof valor === 'object') return ''
+  return String(valor).trim()
+}
+
+// Toma del frontmatter solo los campos definidos para este tipo de entidad.
+// Las demás claves desconocidas se ignoran (siguen en el archivo).
+export function leerCamposPersonalizados(frontmatter, definiciones, tipoEntidad) {
+  const campos = {}
+  for (const def of definiciones ?? []) {
+    if (!def.aplicaA?.includes(tipoEntidad)) continue
+    const valor = valorDeCampo(frontmatter?.[def.clave])
+    if (valor) campos[def.clave] = valor
+  }
+  return campos
+}
+
+// { clave: valor } -> claves de frontmatter. Un valor vacío queda como
+// undefined para que la clave desaparezca del archivo; las claves reservadas
+// de la app nunca se sobrescriben.
+function camposAFrontmatter(campos) {
+  const resultado = {}
+  for (const [clave, valor] of Object.entries(campos ?? {})) {
+    if (esClaveReservada(clave)) continue
+    const limpio = valorDeCampo(valor)
+    resultado[clave] = limpio || undefined
+  }
+  return resultado
+}
+
 // ---------- Trabajo / Función: el cuerpo es la descripción ----------
 
 export function leerContenedor(textoArchivo) {
@@ -100,6 +136,7 @@ export function escribirContenedor(tipo, entidad, textoAnterior = '') {
       tipo,
       createdAt: entidad.createdAt,
       updatedAt: entidad.updatedAt,
+      ...camposAFrontmatter(entidad.camposPersonalizados),
     },
     entidad.descripcion || '',
   )
@@ -156,6 +193,7 @@ export function escribirActividad(actividad, textoAnterior = '') {
       serie: actividad.recurrencia && actividad.serie ? actividad.serie : undefined,
       createdAt: actividad.createdAt,
       updatedAt: actividad.updatedAt,
+      ...camposAFrontmatter(actividad.camposPersonalizados),
     },
     partes.join('\n\n'),
   )

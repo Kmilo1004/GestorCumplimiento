@@ -1,5 +1,6 @@
 import Icono from '../ui/Icono'
 import { useData } from '../../context/DataContext'
+import { useUI } from '../../context/UIContext'
 import { ESTADOS } from '../../models'
 
 const SECCIONES = [
@@ -14,6 +15,7 @@ const SECCIONES = [
 // saltar directo a él.
 export function MenuLateral({ seccion, trabajoId, navegar }) {
   const { arbol, boveda, actividadesPorTrabajo } = useData()
+  const { abrirConfiguracion } = useUI()
   const abiertas = (trabajoId) =>
     (actividadesPorTrabajo.get(trabajoId) ?? []).filter((a) => a.estado !== ESTADOS.COMPLETADA).length
 
@@ -74,11 +76,20 @@ export function MenuLateral({ seccion, trabajoId, navegar }) {
         })}
       </nav>
 
-      <div className="border-t border-slate-100 px-5 py-3 text-xs text-slate-400">
-        <p className="flex items-center gap-1.5 truncate" title="Carpeta de la bóveda">
+      <div className="flex items-center gap-1 border-t border-slate-100 py-2 pl-5 pr-2 text-xs text-slate-400">
+        <p className="flex min-w-0 flex-1 items-center gap-1.5" title="Carpeta de la bóveda">
           <Icono nombre="carpeta" className="h-4 w-4 shrink-0" />
           <span className="truncate">{boveda.nombre}</span>
         </p>
+        <button
+          type="button"
+          onClick={abrirConfiguracion}
+          aria-label="Configuración"
+          title="Configuración"
+          className="shrink-0 rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700"
+        >
+          <Icono nombre="engranaje" className="h-5 w-5" />
+        </button>
       </div>
     </aside>
   )

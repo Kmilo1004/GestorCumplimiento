@@ -4,7 +4,7 @@ import Icono from '../ui/Icono'
 import { PrioridadBadge, TagChip } from '../ui/Badge'
 import EvidenciasField from './EvidenciasField'
 import { useData } from '../../context/DataContext'
-import { ALERTA, ESTADOS, ESTADO_LABELS, ESTADO_LIST, RECURRENCIA_LABELS } from '../../models'
+import { ALERTA, ESTADOS, ESTADO_LABELS, ESTADO_LIST, RECURRENCIA_LABELS, TIPOS_CAMPO } from '../../models'
 import { formatearFecha, nivelAlerta, textoRelativo } from '../../utils/alerts'
 import { abrirArchivo } from '../../utils/archivos'
 
@@ -34,7 +34,14 @@ function Propiedad({ icono, etiqueta, children }) {
 // Todo lo de una actividad en un panel: estado (cambio rápido), propiedades,
 // textos y evidencias. Editar y eliminar quedan en el pie.
 export default function ActividadDetalle({ actividadId, onClose, onEditar }) {
-  const { actividadesConContexto, actualizarActividad, eliminarActividad, eliminarEvidencia, leerEvidencia } = useData()
+  const {
+    actividadesConContexto,
+    actualizarActividad,
+    eliminarActividad,
+    eliminarEvidencia,
+    leerEvidencia,
+    camposPersonalizados,
+  } = useData()
   const [confirmando, setConfirmando] = useState(false)
   const [error, setError] = useState('')
   const actividad = actividadesConContexto.find((a) => a.id === actividadId)
@@ -52,6 +59,9 @@ export default function ActividadDetalle({ actividadId, onClose, onEditar }) {
   }
 
   const alerta = nivelAlerta(actividad)
+  const camposConValor = camposPersonalizados.filter(
+    (c) => c.aplicaA.includes('actividad') && actividad.camposPersonalizados?.[c.clave],
+  )
 
   return (
     <Panel
@@ -152,6 +162,14 @@ export default function ActividadDetalle({ actividadId, onClose, onEditar }) {
             </span>
           </Propiedad>
         )}
+        {camposConValor.map((c) => {
+          const valor = actividad.camposPersonalizados[c.clave]
+          return (
+            <Propiedad key={c.clave} icono="lista" etiqueta={c.etiqueta}>
+              <span className="break-words">{c.tipo === TIPOS_CAMPO.FECHA ? formatearFecha(valor) : valor}</span>
+            </Propiedad>
+          )
+        })}
       </div>
 
       {actividad.descripcion && (
