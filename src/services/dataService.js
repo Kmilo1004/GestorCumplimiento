@@ -11,11 +11,18 @@ import { esFechaValida, nombreDePeriodo, serieDe, siguienteFecha } from '../util
 import { createWebFs } from './fs/webFs'
 import { createVaultRepository } from './vault/vaultRepository'
 import { mensajeExceso } from './vault/limiteRuta'
+import { ultimoRespaldo } from './vault/respaldo'
+import {
+  carpetasSeCruzan,
+  elegirCarpetaRespaldo,
+  guardarCarpetaRespaldo,
+} from './vault/vaultHandle'
 
 // Selección de la carpeta y migración: se exponen aquí para que el Context
 // no dependa de los módulos internos de services/.
 export {
   carpetaGuardada,
+  carpetaRespaldoGuardada,
   elegirCarpeta,
   estadoPermiso,
   guardarConfig,
@@ -24,6 +31,7 @@ export {
   pedirPermiso,
 } from './vault/vaultHandle'
 export { leerDatosAnteriores } from './legacyIndexedDB'
+export { tocaRespaldo } from './vault/respaldo'
 
 const EXPORT_VERSION = 1
 
@@ -237,6 +245,50 @@ export function guardarCamposPersonalizados(campos) {
 // { formato, creadoEn } de la bóveda abierta.
 export function leerInfoBoveda() {
   return repositorio().leerInfoBoveda()
+}
+
+// ---------- Copias de respaldo en otra carpeta ----------
+
+let destinoRespaldo = null // fs de la carpeta de destino
+
+export function conectarDestinoRespaldo(directoryHandle) {
+  destinoRespaldo = directoryHandle ? createWebFs(directoryHandle) : null
+}
+
+// Abre el selector y valida que la carpeta no sea la bóveda, ni esté dentro
+// de ella, ni la contenga (las copias se meterían en la propia bóveda).
+// Debe llamarse desde un clic. Devuelve el handle o null si se canceló.
+export async function elegirDestinoRespaldo(handleBoveda) {
+  let handle
+  try {
+    handle = await elegirCarpetaRespaldo()
+  } catch (err) {
+    if (err?.name === 'AbortError') return null
+    throw err
+  }
+  if (handleBoveda && (await carpetasSeCruzan(handle, handleBoveda))) {
+    throw new Error(
+      'Elige una carpeta aparte para las copias: no puede ser la bóveda, ni estar dentro de ella, ni contenerla. Por ejemplo, crea "Respaldos" en OneDrive.',
+    )
+  }
+  await guardarCarpetaRespaldo(handle)
+  conectarDestinoRespaldo(handle)
+  return handle
+}
+
+function destino() {
+  if (!destinoRespaldo) throw new Error('No hay una carpeta de respaldos elegida.')
+  return destinoRespaldo
+}
+
+// { carpeta, creadoEn, archivos, fallidos } de la copia nueva.
+export function respaldarAhora(nombreBoveda) {
+  return repositorio().respaldarEn(destino(), { nombreBoveda })
+}
+
+// La copia completa más reciente de esta bóveda, o null.
+export function leerUltimoRespaldo(nombreBoveda) {
+  return ultimoRespaldo(destino(), nombreBoveda)
 }
 
 // ---------- Backup: exportar / importar JSON ----------

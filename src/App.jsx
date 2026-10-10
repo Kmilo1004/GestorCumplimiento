@@ -10,6 +10,7 @@ import AgendaView from './components/agenda/AgendaView'
 import BackupView from './components/backup/BackupView'
 import VaultGate from './components/vault/VaultGate'
 import MigracionBanner from './components/vault/MigracionBanner'
+import RespaldoBanner from './components/vault/RespaldoBanner'
 import { esISO } from './utils/fechas'
 
 const SECCIONES = new Set(['resumen', 'agenda', 'trabajos', 'actividades', 'boveda'])
@@ -84,6 +85,7 @@ function Contenido({ partes, navegar }) {
       <MenuLateral seccion={seccion} trabajoId={partes[1]} navegar={navegar} />
       <main className="pb-28 lg:pb-10">
         <MigracionBanner />
+        <RespaldoBanner />
         {pagina}
       </main>
       {seccion !== 'boveda' && !loading && !error && (

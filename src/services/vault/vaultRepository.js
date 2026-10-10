@@ -35,6 +35,7 @@ import {
 } from './markdown'
 import { escribirNotaDiaria, leerNotaDiaria } from './notaDiaria'
 import { MAX_RUTA, largoMasLargo, mensajeExceso } from './limiteRuta'
+import { crearRespaldo } from './respaldo'
 import { marcarPasados } from '../../utils/compromisos'
 import { aISO } from '../../utils/fechas'
 
@@ -559,6 +560,12 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     })
   }
 
+  // Copia la bóveda a otra carpeta (otro fs). Va en la cola para que no
+  // copie un archivo a medio guardar.
+  function respaldarEn(destinoFs, opciones) {
+    return enCola(() => crearRespaldo(fs, destinoFs, { ahora: ahora(), ...opciones }))
+  }
+
   // Metadatos de .cumplimiento/config.json (formato y fecha de creación).
   function leerInfoBoveda() {
     return enCola(async () => {
@@ -682,6 +689,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   }
 
   return {
+    respaldarEn,
     excesoDeRuta,
     leerCampos,
     guardarCampos,

@@ -3,6 +3,7 @@ import Modal from '../ui/Modal'
 import ConfirmDialog from '../ui/ConfirmDialog'
 import MenuAcciones from '../ui/MenuAcciones'
 import { Field, Select, TextArea, TextInput } from '../ui/Field'
+import SeccionRespaldos from './SeccionRespaldos'
 import { useData } from '../../context/DataContext'
 import {
   ENTIDADES,
@@ -262,6 +263,8 @@ export default function ConfiguracionModal({ open, onClose }) {
           <div className="mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">{error}</div>
         )}
       </section>
+
+      <SeccionRespaldos />
 
       <section className="mt-6 border-t border-slate-100 pt-4">
         <h3 className="text-sm font-semibold text-slate-800">Acerca de esta bóveda</h3>

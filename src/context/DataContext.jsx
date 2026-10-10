@@ -1,6 +1,6 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import * as dataService from '../services/dataService'
-import { unicasSinMayusculas } from '../models'
+import { FRECUENCIA_RESPALDO_LIST, FRECUENCIA_RESPALDO_PREDETERMINADA, unicasSinMayusculas } from '../models'
 import { aISO, sumarDias } from '../utils/fechas'
 
 const MINUTO = 60_000
@@ -13,8 +13,12 @@ import { construirArbol, resumenGeneral } from '../utils/compliance'
 //   'sin-permiso' -> hay carpeta guardada pero el navegador pide confirmar el acceso
 //   'lista'       -> bóveda abierta
 const CLAVE_MIGRACION = 'migracionIndexedDBResuelta'
+const CLAVE_FRECUENCIA_RESPALDO = 'respaldoFrecuencia'
+// Tras un respaldo fallido (p. ej. USB desconectada) no se reintenta enseguida.
+const ESPERA_TRAS_FALLO = 15 * MINUTO
 const {
   carpetaGuardada,
+  carpetaRespaldoGuardada,
   elegirCarpeta,
   estadoPermiso,
   guardarConfig,
@@ -22,7 +26,31 @@ const {
   leerDatosAnteriores,
   navegadorCompatible,
   pedirPermiso,
+  tocaRespaldo,
 } = dataService
+const FRECUENCIA_PREDETERMINADA = FRECUENCIA_RESPALDO_PREDETERMINADA
+const FRECUENCIA_LIST = FRECUENCIA_RESPALDO_LIST
+
+// Estados del respaldo automático:
+//   'sin-destino' -> no se ha elegido carpeta de respaldos
+//   'sin-permiso' -> hay carpeta pero el navegador pide confirmar el acceso
+//   'listo'       -> se puede respaldar
+const RESPALDO_INICIAL = {
+  estado: 'sin-destino',
+  destino: '',
+  frecuencia: FRECUENCIA_PREDETERMINADA,
+  ultimo: null, // { creadoEn, archivos, fallidos }
+  enCurso: false,
+  error: '',
+}
+
+function mensajeErrorRespaldo(err) {
+  if (err?.name === 'NotFoundError') {
+    return 'No se encontró la carpeta de respaldos. ¿La moviste, la renombraste o desconectaste la USB?'
+  }
+  if (err?.name === 'NotAllowedError') return 'El navegador no tiene permiso para escribir en la carpeta de respaldos.'
+  return err?.message || 'No se pudo hacer la copia de respaldo.'
+}
 
 const DataContext = createContext(null)
 
@@ -35,6 +63,10 @@ export function DataProvider({ children }) {
   const [boveda, setBoveda] = useState({ estado: 'iniciando', nombre: '' })
   const [migracionPendiente, setMigracionPendiente] = useState(null)
   const [camposPersonalizados, setCamposPersonalizados] = useState([])
+  const [respaldo, setRespaldo] = useState(RESPALDO_INICIAL)
+  const destinoRespaldoRef = useRef(null)
+  const respaldoEnCursoRef = useRef(false)
+  const ultimoFalloRespaldoRef = useRef(0)
   // Sube cada vez que la agenda puede haber cambiado (guardado o relectura de
   // la carpeta), para que las vistas del calendario vuelvan a leerla.
   const [versionAgenda, setVersionAgenda] = useState(0)
@@ -148,6 +180,114 @@ export function DataProvider({ children }) {
       clearInterval(intervalo)
     }
   }, [boveda.estado, boveda.nombre])
+
+  // ---- Copias de respaldo ----
+
+  // Con la carpeta de destino ya conectada: lee cuál fue la última copia.
+  const respaldoListo = useCallback(async (handle, nombreBoveda) => {
+    dataService.conectarDestinoRespaldo(handle)
+    let ultimo = null
+    let error = ''
+    try {
+      ultimo = await dataService.leerUltimoRespaldo(nombreBoveda)
+    } catch (err) {
+      console.error(err)
+      error = mensajeErrorRespaldo(err)
+    }
+    setRespaldo((r) => ({ ...r, estado: 'listo', destino: handle.name, ultimo, error }))
+  }, [])
+
+  // Al abrir la bóveda: frecuencia y carpeta de destino guardadas.
+  useEffect(() => {
+    if (boveda.estado !== 'lista') return
+    let activo = true
+    ;(async () => {
+      const guardada = await leerConfig(CLAVE_FRECUENCIA_RESPALDO)
+      const frecuencia = FRECUENCIA_LIST.includes(guardada) ? guardada : FRECUENCIA_PREDETERMINADA
+      const handle = await carpetaRespaldoGuardada()
+      if (!activo) return
+      destinoRespaldoRef.current = handle
+      dataService.conectarDestinoRespaldo(null)
+      if (!handle) {
+        setRespaldo({ ...RESPALDO_INICIAL, frecuencia })
+        return
+      }
+      if ((await estadoPermiso(handle)) !== 'granted') {
+        if (activo) setRespaldo({ ...RESPALDO_INICIAL, frecuencia, estado: 'sin-permiso', destino: handle.name })
+        return
+      }
+      if (!activo) return
+      setRespaldo({ ...RESPALDO_INICIAL, frecuencia, destino: handle.name })
+      await respaldoListo(handle, boveda.nombre)
+    })().catch((err) => {
+      console.error(err)
+      if (activo) setRespaldo((r) => ({ ...r, error: mensajeErrorRespaldo(err) }))
+    })
+    return () => {
+      activo = false
+    }
+  }, [boveda.estado, boveda.nombre, respaldoListo])
+
+  const hacerRespaldo = useCallback(async () => {
+    if (respaldoEnCursoRef.current) return null
+    respaldoEnCursoRef.current = true
+    setRespaldo((r) => ({ ...r, enCurso: true, error: '' }))
+    try {
+      const nuevo = await dataService.respaldarAhora(boveda.nombre)
+      ultimoFalloRespaldoRef.current = 0
+      setRespaldo((r) => ({ ...r, enCurso: false, ultimo: nuevo }))
+      return nuevo
+    } catch (err) {
+      console.error(err)
+      ultimoFalloRespaldoRef.current = Date.now()
+      setRespaldo((r) => ({
+        ...r,
+        enCurso: false,
+        error: mensajeErrorRespaldo(err),
+        estado: err?.name === 'NotAllowedError' ? 'sin-permiso' : r.estado,
+      }))
+      return null
+    } finally {
+      respaldoEnCursoRef.current = false
+    }
+  }, [boveda.nombre])
+
+  // Respaldo automático: al abrir y luego cada minuto se revisa si ya toca.
+  useEffect(() => {
+    if (boveda.estado !== 'lista' || respaldo.estado !== 'listo') return
+    const revisar = () => {
+      if (Date.now() - ultimoFalloRespaldoRef.current < ESPERA_TRAS_FALLO) return
+      if (tocaRespaldo(respaldo.ultimo?.creadoEn, respaldo.frecuencia, new Date())) hacerRespaldo()
+    }
+    revisar()
+    const intervalo = setInterval(revisar, MINUTO)
+    return () => clearInterval(intervalo)
+  }, [boveda.estado, respaldo.estado, respaldo.frecuencia, respaldo.ultimo, hacerRespaldo])
+
+  // Deben llamarse desde un clic (el navegador lo exige).
+  const elegirDestinoRespaldo = useCallback(async () => {
+    setRespaldo((r) => ({ ...r, error: '' }))
+    const handle = await dataService.elegirDestinoRespaldo(handleRef.current)
+    if (!handle) return
+    destinoRespaldoRef.current = handle
+    ultimoFalloRespaldoRef.current = 0
+    await respaldoListo(handle, boveda.nombre)
+  }, [boveda.nombre, respaldoListo])
+
+  const permitirRespaldo = useCallback(async () => {
+    const handle = destinoRespaldoRef.current
+    if (!handle) return
+    if ((await pedirPermiso(handle)) !== 'granted') {
+      throw new Error('No se concedió acceso a la carpeta de respaldos. Vuelve a intentarlo y elige "Permitir".')
+    }
+    ultimoFalloRespaldoRef.current = 0
+    await respaldoListo(handle, boveda.nombre)
+  }, [boveda.nombre, respaldoListo])
+
+  const cambiarFrecuenciaRespaldo = useCallback(async (frecuencia) => {
+    await guardarConfig(CLAVE_FRECUENCIA_RESPALDO, frecuencia)
+    setRespaldo((r) => ({ ...r, frecuencia }))
+  }, [])
 
   // Deben llamarse desde un clic (el navegador lo exige).
   const elegirBoveda = useCallback(async () => {
@@ -359,6 +499,11 @@ export function DataProvider({ children }) {
     guardarCamposPersonalizados,
     leerInfoBoveda,
     avisoLargoRuta,
+    respaldo,
+    hacerRespaldo,
+    elegirDestinoRespaldo,
+    permitirRespaldo,
+    cambiarFrecuenciaRespaldo,
     exportarDatos,
     importarDatos,
   }

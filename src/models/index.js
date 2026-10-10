@@ -72,6 +72,27 @@ export const RECURRENCIA_LABELS = {
 
 export const RECURRENCIA_LIST = Object.values(RECURRENCIAS)
 
+// ---------- Copias de respaldo ----------
+
+export const FRECUENCIAS_RESPALDO = {
+  DOCE_HORAS: '12h',
+  DIARIA: 'diaria',
+  SEMANAL: 'semanal',
+  DESACTIVADA: 'desactivada',
+}
+
+export const FRECUENCIA_RESPALDO_LABELS = {
+  [FRECUENCIAS_RESPALDO.DOCE_HORAS]: 'Cada 12 horas',
+  [FRECUENCIAS_RESPALDO.DIARIA]: 'Diaria',
+  [FRECUENCIAS_RESPALDO.SEMANAL]: 'Semanal',
+  [FRECUENCIAS_RESPALDO.DESACTIVADA]: 'Desactivada',
+}
+
+export const FRECUENCIA_RESPALDO_LIST = Object.values(FRECUENCIAS_RESPALDO)
+export const FRECUENCIA_RESPALDO_PREDETERMINADA = FRECUENCIAS_RESPALDO.DIARIA
+// Copias completas que se conservan por bóveda.
+export const RESPALDOS_A_CONSERVAR = 10
+
 // ---------- Campos personalizados ----------
 // El usuario define campos extra (en Configuración) que se guardan en el
 // frontmatter de cada archivo: `radicado: RAD-2026-001`. Las definiciones

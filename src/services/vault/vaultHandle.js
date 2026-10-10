@@ -45,6 +45,30 @@ export async function carpetaGuardada() {
   return (await leerConfig(CLAVE_BOVEDA)) ?? null
 }
 
+// ---------- Carpeta de destino de las copias de respaldo ----------
+
+const CLAVE_RESPALDO = 'respaldoDestino'
+
+// Abre el selector. No guarda nada: quien llama valida la carpeta primero.
+// Debe llamarse desde un clic del usuario.
+export function elegirCarpetaRespaldo() {
+  return window.showDirectoryPicker({ id: 'respaldo-cumplimiento', mode: 'readwrite' })
+}
+
+export async function guardarCarpetaRespaldo(handle) {
+  await guardarConfig(CLAVE_RESPALDO, handle)
+}
+
+export async function carpetaRespaldoGuardada() {
+  return (await leerConfig(CLAVE_RESPALDO)) ?? null
+}
+
+// ¿Una carpeta está dentro de la otra (o es la misma)?
+export async function carpetasSeCruzan(a, b) {
+  if (await a.isSameEntry(b)) return true
+  return (await a.resolve(b)) !== null || (await b.resolve(a)) !== null
+}
+
 // 'granted' | 'prompt' | 'denied'
 export async function estadoPermiso(handle) {
   return handle.queryPermission({ mode: 'readwrite' })
