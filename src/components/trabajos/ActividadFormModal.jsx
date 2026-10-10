@@ -44,7 +44,7 @@ export default function ActividadFormModal({
   onSubmit,
   onIrATrabajos,
 }) {
-  const { arbol, etiquetas, leerEvidencia, eliminarEvidencia, camposPersonalizados } = useData()
+  const { arbol, etiquetas, leerEvidencia, eliminarEvidencia, camposPersonalizados, avisoLargoRuta } = useData()
   const [form, setForm] = useState(VACIO)
   const [masOpciones, setMasOpciones] = useState(false)
   const [archivos, setArchivos] = useState([]) // File[] por adjuntar al guardar
@@ -92,6 +92,15 @@ export default function ActividadFormModal({
     form.recurrencia && form.fecha_limite && form.nombre.trim()
       ? nombreDePeriodo(form.nombre.trim(), form.fecha_limite, form.recurrencia)
       : ''
+  // Se revisa con el nombre que tendrá el archivo (en una recurrente, con el periodo).
+  const avisoLargo =
+    form.nombre.trim() && funcionElegida
+      ? avisoLargoRuta('actividad', {
+          id: actividad?.id,
+          funcionId: funcionElegida,
+          nombre: nombreFinal || form.nombre.trim(),
+        })
+      : ''
   const hayCamposPersonalizados = camposPersonalizados.some((c) => c.aplicaA.includes('actividad'))
   const camposConValor = Object.values(form.camposPersonalizados).filter((v) => String(v ?? '').trim()).length
   const extrasUsados =
@@ -100,7 +109,7 @@ export default function ActividadFormModal({
 
   const handleSubmit = async (e) => {
     e.preventDefault()
-    if (!form.nombre.trim() || !funcionElegida) return
+    if (!form.nombre.trim() || !funcionElegida || avisoLargo) return
     if (faltaFecha) {
       setMasOpciones(true)
       setError('Indica la fecha límite: la necesita una actividad que se repite.')
@@ -166,7 +175,9 @@ export default function ActividadFormModal({
             placeholder="Revisar solicitudes de CDP"
             value={form.nombre}
             onChange={(e) => set({ nombre: e.target.value })}
+            aria-invalid={Boolean(avisoLargo)}
           />
+          {avisoLargo && <span className="mt-1 block text-xs text-red-600">{avisoLargo}</span>}
           {nombreFinal && (
             <span className="mt-1 block text-xs text-slate-400">
               Se guardará como <span className="font-medium text-slate-600">{nombreFinal}</span>
@@ -309,7 +320,7 @@ export default function ActividadFormModal({
           </button>
           <button
             type="submit"
-            disabled={guardando || !form.nombre.trim() || !funcionElegida}
+            disabled={guardando || !form.nombre.trim() || !funcionElegida || Boolean(avisoLargo)}
             className="rounded-lg bg-brand-600 px-4 py-2.5 text-sm font-medium text-white hover:bg-brand-700 disabled:opacity-50"
           >
             {guardando ? 'Guardando…' : esEdicion ? 'Guardar cambios' : 'Agregar'}

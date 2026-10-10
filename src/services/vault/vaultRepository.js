@@ -34,6 +34,7 @@ import {
   leerContenedor,
 } from './markdown'
 import { escribirNotaDiaria, leerNotaDiaria } from './notaDiaria'
+import { MAX_RUTA, largoMasLargo, mensajeExceso } from './limiteRuta'
 import { marcarPasados } from '../../utils/compromisos'
 import { aISO } from '../../utils/fechas'
 
@@ -289,6 +290,63 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     return destino.slice(carpetaPadre.length + 1)
   }
 
+  // ---------- Límite de rutas (Windows) ----------
+
+  // Nombre que tendría en disco: el actual si no cambió (igual que ubicar).
+  function nombreEnDisco(nombreDeseado, previo, actual) {
+    return previo && String(nombreDeseado ?? '').trim() === actual ? actual : nombreSeguro(nombreDeseado)
+  }
+
+  const actividadesDe = (funcionId) =>
+    [...actividades.values()].filter((a) => a.entidad.funcionId === funcionId).map((a) => sinExtension(a.archivo))
+
+  // Árbol de nombres que quedaría bajo el trabajo al guardar `entidad`.
+  function estructura(tipo, entidad) {
+    if (tipo === 'trabajo') {
+      const previo = trabajos.get(entidad.id)
+      return {
+        trabajo: nombreEnDisco(entidad.nombre, previo, previo?.carpeta),
+        funciones: [...funciones.values()]
+          .filter((f) => f.entidad.trabajoId === entidad.id)
+          .map((f) => ({ nombre: f.carpeta, actividades: actividadesDe(f.entidad.id) })),
+      }
+    }
+    if (tipo === 'funcion') {
+      const t = trabajos.get(entidad.trabajoId)
+      if (!t) return null
+      const previo = funciones.get(entidad.id)
+      return {
+        trabajo: t.carpeta,
+        funciones: [{ nombre: nombreEnDisco(entidad.nombre, previo, previo?.carpeta), actividades: actividadesDe(entidad.id) }],
+      }
+    }
+    const f = funciones.get(entidad.funcionId)
+    const t = f && trabajos.get(f.entidad.trabajoId)
+    if (!t) return null
+    const previo = actividades.get(entidad.id)
+    const nombre = nombreEnDisco(entidad.nombre, previo, previo && sinExtension(previo.archivo))
+    return { trabajo: t.carpeta, funciones: [{ nombre: f.carpeta, actividades: [nombre] }] }
+  }
+
+  // Cuántos caracteres sobran al guardar `entidad`; 0 si cabe. Lo que ya
+  // existía demasiado largo (hecho a mano) se puede seguir editando mientras
+  // la ruta no crezca.
+  function excesoDeRuta(tipo, entidad) {
+    const despues = estructura(tipo, entidad)
+    if (!despues) return 0
+    const nuevo = largoMasLargo(despues)
+    if (nuevo <= MAX_RUTA) return 0
+    const mapa = { trabajo: trabajos, funcion: funciones, actividad: actividades }[tipo]
+    const previo = mapa.get(entidad.id)
+    const antes = previo && estructura(tipo, previo.entidad)
+    return antes && nuevo <= largoMasLargo(antes) ? 0 : nuevo - MAX_RUTA
+  }
+
+  function exigirLargo(tipo, entidad) {
+    const exceso = excesoDeRuta(tipo, entidad)
+    if (exceso) throw new Error(mensajeExceso(tipo, exceso))
+  }
+
   async function aPapelera(ruta) {
     const sello = ahora().toISOString().replace(/[:.]/g, '-')
     const destino = await rutaDisponible(fs, joinPath(CARPETA_PAPELERA, sello), ruta)
@@ -300,6 +358,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   function guardarTrabajo(trabajo) {
     return enCola(async () => {
       await asegurarCargado()
+      exigirLargo('trabajo', trabajo)
       const previo = trabajos.get(trabajo.id)
       const carpeta = await ubicar({
         carpetaPadre: CARPETA_TRABAJOS,
@@ -336,6 +395,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   function guardarFuncion(funcion) {
     return enCola(async () => {
       await asegurarCargado()
+      exigirLargo('funcion', funcion)
       const carpetaPadre = rutaTrabajo(funcion.trabajoId)
       const previo = funciones.get(funcion.id)
       const carpeta = await ubicar({
@@ -368,6 +428,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   function guardarActividad(actividad) {
     return enCola(async () => {
       await asegurarCargado()
+      exigirLargo('actividad', actividad)
       const carpetaPadre = rutaFuncion(actividad.funcionId)
       const previo = actividades.get(actividad.id)
       const evidenciasAntes = previo ? rutaEvidencias(actividad.id) : null
@@ -437,9 +498,13 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
     return enCola(async () => {
       await asegurarCargado()
       const carpeta = rutaEvidencias(id)
+      // Nombres de adjuntos largos se recortan para que la ruta quepa en
+      // Windows (se reservan 4 caracteres para un posible " (2)").
+      const disponible = Math.max(8, MAX_RUTA - carpeta.length - 1 - 4)
       for (const archivo of archivos) {
         const { base, extension } = partirNombreArchivo(archivo.name || 'evidencia')
-        const destino = await rutaDisponible(fs, carpeta, nombreSeguro(base), extension)
+        const recortado = nombreSeguro(nombreSeguro(base).slice(0, Math.max(1, disponible - extension.length)))
+        const destino = await rutaDisponible(fs, carpeta, recortado, extension)
         await fs.writeFile(destino, archivo)
       }
       return refrescarEvidencias(id)
@@ -617,6 +682,7 @@ export function createVaultRepository(fs, { ahora = () => new Date() } = {}) {
   }
 
   return {
+    excesoDeRuta,
     leerCampos,
     guardarCampos,
     leerInfoBoveda,

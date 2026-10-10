@@ -59,7 +59,7 @@ export default function BackupView() {
       setEstado({
         tipo: 'exito',
         mensaje: omitidos
-          ? `Datos importados. Se omitieron ${omitidos} elementos sin trabajo o función a la que pertenecer.`
+          ? `Datos importados. Se omitieron ${omitidos} elementos: sin trabajo o función a la que pertenecer, o con nombres demasiado largos para Windows.`
           : 'Datos importados correctamente.',
       })
       setPendiente(null)

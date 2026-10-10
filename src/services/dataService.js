@@ -10,6 +10,7 @@ import { ESTADOS, crearActividad, crearFuncion, crearTrabajo } from '../models'
 import { esFechaValida, nombreDePeriodo, serieDe, siguienteFecha } from '../utils/recurrencia'
 import { createWebFs } from './fs/webFs'
 import { createVaultRepository } from './vault/vaultRepository'
+import { mensajeExceso } from './vault/limiteRuta'
 
 // Selección de la carpeta y migración: se exponen aquí para que el Context
 // no dependa de los módulos internos de services/.
@@ -56,6 +57,15 @@ export async function cargarTodo({ recargar = false } = {}) {
     funciones: funciones.sort(porNombre),
     actividades: actividades.sort((a, b) => (a.fecha_limite || '').localeCompare(b.fecha_limite || '')),
   }
+}
+
+// Aviso si guardar `entidad` dejaría una ruta demasiado larga para Windows
+// ('' si cabe). tipo: 'trabajo' | 'funcion' | 'actividad'. Sirve para avisar
+// mientras se escribe; el repositorio vuelve a revisarlo al guardar.
+export function avisoLargoRuta(tipo, entidad) {
+  if (!repo) return ''
+  const exceso = repo.excesoDeRuta(tipo, entidad)
+  return exceso ? mensajeExceso(tipo, exceso) : ''
 }
 
 async function actualizar(tipo, guardar, id, cambios, mensaje) {
@@ -267,25 +277,35 @@ export async function importarDatos(data, { modo = 'reemplazar' } = {}) {
   const trabajoIds = new Set(actual.trabajos.map((t) => t.id))
   const funcionIds = new Set(actual.funciones.map((f) => f.id))
   let omitidos = 0
+  // Un elemento que no se puede guardar (p. ej. nombre demasiado largo para
+  // Windows) se omite junto con lo que cuelga de él, sin cortar la importación.
+  const intentar = async (guardar) => {
+    try {
+      await guardar()
+      return true
+    } catch (err) {
+      console.error(err)
+      omitidos++
+      return false
+    }
+  }
 
   for (const t of data.trabajos) {
-    await r.guardarTrabajo({ ...crearTrabajo(t), ...t })
-    trabajoIds.add(t.id)
+    if (await intentar(() => r.guardarTrabajo({ ...crearTrabajo(t), ...t }))) trabajoIds.add(t.id)
   }
   for (const f of data.funciones) {
     if (!trabajoIds.has(f.trabajoId)) {
       omitidos++
       continue
     }
-    await r.guardarFuncion({ ...crearFuncion(f), ...f })
-    funcionIds.add(f.id)
+    if (await intentar(() => r.guardarFuncion({ ...crearFuncion(f), ...f }))) funcionIds.add(f.id)
   }
   for (const a of data.actividades) {
     if (!funcionIds.has(a.funcionId)) {
       omitidos++
       continue
     }
-    await r.guardarActividad({ ...crearActividad(a), ...a })
+    await intentar(() => r.guardarActividad({ ...crearActividad(a), ...a }))
   }
 
   return { omitidos }

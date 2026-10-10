@@ -3,6 +3,7 @@ import { createMemoryFs } from '../fs/memoryFs'
 import { crearActividad, crearFuncion, crearTrabajo } from '../../models'
 import { separarFrontmatter } from './markdown'
 import { createVaultRepository } from './vaultRepository'
+import { MAX_RUTA } from './limiteRuta'
 
 const fecha = new Date('2026-10-07T12:00:00.000Z')
 
@@ -254,5 +255,76 @@ describe('vaultRepository: campos personalizados', () => {
 
   it('lee el formato y la fecha de creación de la bóveda', async () => {
     expect(await repo.leerInfoBoveda()).toEqual({ formato: 1, creadoEn: fecha.toISOString() })
+  })
+})
+
+describe('vaultRepository: límite de rutas de Windows', () => {
+  let fs
+  let repo
+
+  beforeEach(() => {
+    fs = createMemoryFs()
+    repo = createVaultRepository(fs, { ahora: () => fecha })
+  })
+
+  const largo = (n) => 'a'.repeat(n)
+
+  it('rechaza una actividad cuya ruta no cabría, sin escribir nada', async () => {
+    const { f } = await sembrar(repo)
+    const antes = Object.keys(fs._snapshot())
+    const nueva = crearActividad({ funcionId: f.id, nombre: largo(110) })
+    expect(repo.excesoDeRuta('actividad', nueva)).toBeGreaterThan(0)
+    await expect(repo.guardarActividad(nueva)).rejects.toThrow(/demasiado largo para Windows/)
+    expect(Object.keys(fs._snapshot())).toEqual(antes)
+  })
+
+  it('acepta nombres como los de la bóveda de la Inspección de Policía', async () => {
+    const t = await repo.guardarTrabajo(crearTrabajo({ nombre: 'Inspección de Policía' }))
+    const f = await repo.guardarFuncion(
+      crearFuncion({ trabajoId: t.id, nombre: 'Querellas y Procedimiento Verbal (Ley 2455-2025)' }),
+    )
+    const a = crearActividad({ funcionId: f.id, nombre: 'RAD-2026-004 - Querella Maltrato-Abandono' })
+    expect(repo.excesoDeRuta('actividad', a)).toBe(0)
+    await expect(repo.guardarActividad(a)).resolves.toBeDefined()
+  })
+
+  it('el exceso indica exactamente cuántos caracteres sobran', async () => {
+    const { f } = await sembrar(repo)
+    const base = crearActividad({ funcionId: f.id, nombre: 'x' })
+    const sobra = repo.excesoDeRuta('actividad', { ...base, nombre: largo(100) })
+    expect(sobra).toBeGreaterThan(0)
+    expect(repo.excesoDeRuta('actividad', { ...base, nombre: largo(100 - sobra) })).toBe(0)
+    expect(repo.excesoDeRuta('actividad', { ...base, nombre: largo(100 - sobra + 1) })).toBe(1)
+  })
+
+  it('renombrar un trabajo revisa las actividades que tiene dentro', async () => {
+    const { t, f } = await sembrar(repo)
+    await repo.guardarActividad(crearActividad({ funcionId: f.id, nombre: largo(60) }))
+    await expect(repo.guardarTrabajo({ ...t, nombre: largo(40) })).rejects.toThrow(/del trabajo/)
+  })
+
+  it('una función nueva deja espacio para sus actividades futuras', async () => {
+    const { t } = await sembrar(repo)
+    expect(repo.excesoDeRuta('funcion', crearFuncion({ trabajoId: t.id, nombre: largo(100) }))).toBeGreaterThan(0)
+  })
+
+  it('lo que ya era demasiado largo se puede seguir editando si no crece', async () => {
+    const { f } = await sembrar(repo)
+    const ruta = 'Trabajos/Secretaría/Gestión documental'
+    await fs.writeFile(`${ruta}/${largo(110)}.md`, '---\nid: largo-1\ntipo: actividad\n---\n')
+    const { actividades } = await repo.cargar({ recargar: true })
+    const larga = actividades.find((a) => a.id === 'largo-1')
+    expect(larga.funcionId).toBe(f.id)
+    await expect(repo.guardarActividad({ ...larga, estado: 'completada' })).resolves.toBeDefined()
+    await expect(repo.guardarActividad({ ...larga, nombre: largo(111) })).rejects.toThrow()
+  })
+
+  it('recorta los nombres de evidencias largos para que la ruta quepa', async () => {
+    const { a } = await sembrar(repo)
+    const actualizada = await repo.agregarEvidencias(a.id, [new File(['x'], `${largo(200)}.pdf`)])
+    const ruta = Object.keys(fs._snapshot()).find((p) => p.includes('/Evidencias/'))
+    expect(ruta.length).toBeLessThanOrEqual(MAX_RUTA)
+    expect(ruta.endsWith('.pdf')).toBe(true)
+    expect(actualizada.evidencias).toHaveLength(1)
   })
 })

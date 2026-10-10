@@ -308,6 +308,9 @@ export function DataProvider({ children }) {
 
   const leerInfoBoveda = useCallback(() => dataService.leerInfoBoveda(), [])
 
+  // '' o el aviso de nombre demasiado largo para Windows.
+  const avisoLargoRuta = useCallback((tipo, entidad) => dataService.avisoLargoRuta(tipo, entidad), [])
+
   const exportarDatos = useCallback(() => dataService.exportarDatos(), [])
 
   const importarDatos = useCallback(
@@ -355,6 +358,7 @@ export function DataProvider({ children }) {
     camposPersonalizados,
     guardarCamposPersonalizados,
     leerInfoBoveda,
+    avisoLargoRuta,
     exportarDatos,
     importarDatos,
   }

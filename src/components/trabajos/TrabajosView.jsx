@@ -68,6 +68,7 @@ export default function TrabajosView({ trabajoId, funcionId, navegar }) {
       <FuncionFormModal
         open={funcionModal.open}
         funcion={funcionModal.funcion}
+        trabajoId={funcionModal.trabajoId}
         onClose={() => setFuncionModal({ open: false, trabajoId: null, funcion: null })}
         onSubmit={async (form) => {
           if (funcionModal.funcion) return data.actualizarFuncion(funcionModal.funcion.id, form)
